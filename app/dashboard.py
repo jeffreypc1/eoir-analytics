@@ -2110,7 +2110,6 @@ if st.session_state.get("ai_last_response"):
 # Filter Modal (in main area)
 # ---------------------------------------------------------------------------
 
-@st.cache_data(ttl=3600)
 def _get_cascaded_options(table_name: str, field_name: str, exclude_self: bool = True) -> list[tuple[str, int]]:
     """Get distinct values + counts for a field, filtered by all OTHER active filters.
 
@@ -2796,7 +2795,7 @@ if st.session_state.get("show_filter_modal"):
             _modal_active = len(st.session_state.filters)
             st.markdown(f"### \U0001f50d Filters {f'({_modal_active} active)' if _modal_active else ''}")
         with _mhdr2:
-            if st.button("\u2715 Close", key="close_modal_top"):
+            if st.button("✓ Save & View", key="close_modal_top", type="primary"):
                 st.session_state.show_filter_modal = False
                 st.rerun()
 
@@ -2849,14 +2848,14 @@ if st.session_state.get("show_filter_modal"):
             </div>
             """, unsafe_allow_html=True)
 
-        _fc1, _fc2, _fc3 = st.columns([2, 2, 6])
+        _fc1, _fc2, _fc3 = st.columns([3, 2, 5])
         with _fc1:
-            if st.button("\u2713 Done", type="primary", key="done_modal", use_container_width=True):
+            if st.button("✓ Save & View Results", type="primary", key="done_modal", use_container_width=True):
                 st.session_state.show_filter_modal = False
                 st.rerun()
         with _fc2:
             if _modal_count:
-                if st.button("\u2715 Clear All", key="clear_modal", use_container_width=True):
+                if st.button("✕ Clear All Filters", key="clear_modal", use_container_width=True):
                     st.session_state.filters = {}
                     st.rerun()
 
