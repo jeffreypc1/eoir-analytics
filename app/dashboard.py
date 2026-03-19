@@ -2066,9 +2066,10 @@ def _get_cascaded_options(table_name: str, field_name: str, exclude_self: bool =
         return []
 
 
-def _render_filter_widget(table_name: str, field_name: str, field_info: dict, filter_key: str):
+def _render_filter_widget(table_name: str, field_name: str, field_info: dict, filter_key: str, ctx: str = ""):
     """Render the appropriate Streamlit widget for a filter field.
 
+    ctx: unique context prefix to avoid duplicate keys when rendered in multiple places.
     Uses cascading options: each filter's available values are constrained
     by all other active filters.
     """
@@ -2102,7 +2103,7 @@ def _render_filter_widget(table_name: str, field_name: str, field_info: dict, fi
             options=available_codes,
             default=current_vals,
             format_func=fmt,
-            key=f"filt_{filter_key}",
+            key=f"filt_{ctx}{filter_key}",
         )
         if selected:
             st.session_state.filters[filter_key] = selected
@@ -2124,9 +2125,9 @@ def _render_filter_widget(table_name: str, field_name: str, field_info: dict, fi
         st.markdown(f"**{label}**")
         c1, c2 = st.columns(2)
         with c1:
-            new_from = st.date_input("From", value=from_val, key=f"filt_{filter_key}_from")
+            new_from = st.date_input("From", value=from_val, key=f"filt_{ctx}{filter_key}_from")
         with c2:
-            new_to = st.date_input("To", value=to_val, key=f"filt_{filter_key}_to")
+            new_to = st.date_input("To", value=to_val, key=f"filt_{ctx}{filter_key}_to")
         if new_from or new_to:
             st.session_state.filters[filter_key] = {
                 "type": "date",
@@ -2145,12 +2146,12 @@ def _render_filter_widget(table_name: str, field_name: str, field_info: dict, fi
         with c1:
             min_val = st.number_input(
                 "Min", value=int(current_min) if current_min is not None else 0,
-                key=f"filt_{filter_key}_min",
+                key=f"filt_{ctx}{filter_key}_min",
             )
         with c2:
             max_val = st.number_input(
                 "Max", value=int(current_max) if current_max is not None else 1000000,
-                key=f"filt_{filter_key}_max",
+                key=f"filt_{ctx}{filter_key}_max",
             )
         if min_val != 0 or max_val != 1000000:
             st.session_state.filters[filter_key] = {"type": "number", "min": min_val, "max": max_val}
@@ -2173,7 +2174,7 @@ def _render_filter_widget(table_name: str, field_name: str, field_info: dict, fi
             options=available,
             default=current_vals,
             format_func=fmt_plain,
-            key=f"filt_{filter_key}",
+            key=f"filt_{ctx}{filter_key}",
         )
         if selected:
             st.session_state.filters[filter_key] = selected
@@ -2232,7 +2233,7 @@ def _render_filter_panel(container):
             with st.expander(f"{meta.get('label', table_name)}", expanded=True):
                 for field_name, field_info in field_list:
                     filter_key = f"{table_name}.{field_name}"
-                    _render_filter_widget(table_name, field_name, field_info, filter_key)
+                    _render_filter_widget(table_name, field_name, field_info, filter_key, ctx="panel_")
 
         # Footer with Apply & Clear buttons
         st.divider()
@@ -2733,7 +2734,7 @@ with _tabs[_explore_idx]:
                         _fname, _finfo = _ft_visible[_fi + _fj]
                         _fkey = f"{_ft_name}.{_fname}"
                         with _fcol:
-                            _render_filter_widget(_ft_name, _fname, _finfo, _fkey)
+                            _render_filter_widget(_ft_name, _fname, _finfo, _fkey, ctx="tab_")
 
     # Clear all button
     if _active_count:
