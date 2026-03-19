@@ -183,48 +183,81 @@ button[data-baseweb="tab"][aria-selected="true"] {{
     font-weight: 700;
 }}
 
-/* -- Hero header -- */
-.hero-header {{
-    background: linear-gradient(135deg, {PRIMARY} 0%, #1E293B 60%, #334155 100%);
-    border-radius: 20px;
-    padding: 32px 40px;
-    margin-bottom: 24px;
-    color: white;
-    position: relative;
-    overflow: hidden;
+/* -- Compact top bar -- */
+.app-header {{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 24px;
+    background: white;
+    border-bottom: 1px solid #E2E8F0;
+    margin: -1rem -1rem 0 -1rem;
 }}
-.hero-header::after {{
-    content: '';
-    position: absolute;
-    top: -50%;
-    right: -10%;
-    width: 300px;
-    height: 300px;
-    background: radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 70%);
-    border-radius: 50%;
+.app-header-brand {{
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }}
-.hero-header h1 {{
-    font-size: 1.75rem;
-    font-weight: 800;
-    margin: 0 0 4px 0;
-    letter-spacing: -0.02em;
-}}
-.hero-header p {{
-    color: #94A3B8;
-    font-size: 0.9rem;
-    margin: 0;
-}}
-.hero-badge {{
-    display: inline-block;
-    background: rgba(59,130,246,0.15);
-    color: {ACCENT_BLUE};
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 0.7rem;
+.app-header-title {{
+    font-size: 1.05rem;
     font-weight: 700;
+    color: #0F172A;
+    letter-spacing: -0.01em;
+}}
+.app-header-badge {{
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #64748B;
+    background: #F1F5F9;
+    padding: 3px 10px;
+    border-radius: 12px;
+}}
+
+/* -- AI search hero area -- */
+.ai-search-wrapper {{
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 32px 0 8px;
+}}
+.ai-search-prompt {{
+    text-align: center;
+    color: #64748B;
+    font-size: 0.95rem;
+    font-weight: 500;
+    margin-bottom: 14px;
+    letter-spacing: -0.01em;
+}}
+
+/* -- AI response card -- */
+.ai-response-card {{
+    max-width: 720px;
+    margin: 0 auto 16px;
+    background: {CARD_BG};
+    border: 1px solid #E2E8F0;
+    border-radius: 14px;
+    padding: 18px 22px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}}
+.ai-response-label {{
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #94A3B8;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    margin-bottom: 8px;
+    letter-spacing: 0.06em;
+    margin-bottom: 6px;
+}}
+.ai-response-text {{
+    color: #1E293B;
+    font-size: 0.92rem;
+    line-height: 1.55;
+}}
+.ai-filter-card {{
+    max-width: 720px;
+    margin: 0 auto 12px;
+    background: #F0FDF4;
+    border: 1px solid #BBF7D0;
+    border-radius: 14px;
+    padding: 16px 22px;
 }}
 
 /* -- Section headers -- */
@@ -315,9 +348,30 @@ section[data-testid="stSidebar"] .stButton > button:hover {{
 
 /* -- Reduce default spacing -- */
 .block-container {{
-    padding-top: 1rem !important;
+    padding-top: 0 !important;
     padding-bottom: 1rem !important;
     max-width: 100% !important;
+}}
+
+/* -- AI input field styling -- */
+.stTextInput > div > div > input {{
+    border-radius: 16px !important;
+    padding: 14px 20px !important;
+    font-size: 1rem !important;
+    border: 2px solid #E2E8F0 !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04) !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+}}
+.stTextInput > div > div > input:focus {{
+    border-color: {ACCENT_BLUE} !important;
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.12) !important;
+}}
+
+/* -- Suggestion chip buttons -- */
+button[data-testid="stBaseButton-secondary"] {{
+    border-radius: 20px !important;
+    font-size: 0.8rem !important;
+    padding: 4px 16px !important;
 }}
 
 /* -- Filter panel (right drawer) -- */
@@ -430,8 +484,8 @@ section[data-testid="stSidebar"] .stButton > button:hover {{
 }}
 .landing-stat {{
     display: inline-block;
-    background: linear-gradient(135deg, {PRIMARY} 0%, #1E293B 100%);
-    color: #F8FAFC;
+    background: #F1F5F9;
+    color: #475569;
     padding: 8px 20px;
     border-radius: 12px;
     font-size: 0.85rem;
@@ -1633,64 +1687,58 @@ def _call_ai_assistant(user_input: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Hero header
+# Compact top bar
 # ---------------------------------------------------------------------------
 
-st.markdown("""
-<div class="hero-header">
-    <span class="hero-badge">Live Data Platform</span>
-    <h1>EOIR Analytics</h1>
-    <p>Real-time intelligence across 160M+ immigration court records &mdash; proceedings, hearings, judges, and outcomes.</p>
-</div>
-""", unsafe_allow_html=True)
+_active_filter_count_hdr = len(st.session_state.filters)
+_filter_badge = f' ({_active_filter_count_hdr})' if _active_filter_count_hdr else ''
 
-
-# ---------------------------------------------------------------------------
-# AI Input Bar — always visible at the top
-# ---------------------------------------------------------------------------
-
-st.markdown("""
-<div style="background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
-            border-radius: 16px; padding: 24px 28px; margin-bottom: 20px;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.15);">
-    <div style="color: #94A3B8; font-size: 0.8rem; font-weight: 600;
-                letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 8px;">
-        AI DATA ASSISTANT
-    </div>
-    <div style="color: #E2E8F0; font-size: 0.95rem; margin-bottom: 12px;">
-        Ask a question about the data and I'll suggest filters and generate charts
+st.markdown(f"""
+<div class="app-header">
+    <div class="app-header-brand">
+        <span style="font-size: 1.15rem;">&#x2696;&#xFE0F;</span>
+        <span class="app-header-title">EOIR Analytics</span>
+        <span class="app-header-badge">160M+ records</span>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# Input row: text input + voice button + send button
-ai_col1, ai_col2, ai_col3 = st.columns([7, 1, 1])
+
+# ---------------------------------------------------------------------------
+# AI Input — Hero Search Element
+# ---------------------------------------------------------------------------
+
+st.markdown('<div class="ai-search-wrapper">', unsafe_allow_html=True)
+st.markdown('<p class="ai-search-prompt">Ask a question about immigration court data</p>', unsafe_allow_html=True)
+
+# Input row: text input + voice + send
+ai_col1, ai_col2, ai_col3 = st.columns([8, 1, 1])
 with ai_col1:
     ai_text = st.text_input(
-        "Ask about the data...",
-        placeholder="e.g., Show me asylum cases from Mexico decided in San Francisco...",
+        "Search",
+        placeholder="Show me asylum cases from Mexico in 2024...",
         key="ai_top_input",
         label_visibility="collapsed",
     )
 with ai_col2:
     voice_clicked = st.button("🎤", key="voice_btn", help="Record voice question", use_container_width=True)
 with ai_col3:
-    send_clicked = st.button("Ask →", key="send_ai", type="primary", use_container_width=True)
+    send_clicked = st.button("→", key="send_ai", type="primary", use_container_width=True)
 
 # Suggestion chips
-st.markdown('<div style="margin-top: -8px; margin-bottom: 16px;">', unsafe_allow_html=True)
-sugg_cols = st.columns(4)
 suggestions = [
-    "Asylum cases from Mexico in 2024",
+    "Asylum from Mexico",
     "Top judges by grant rate",
-    "Most common charges filed",
-    "Bond hearing outcomes",
+    "Bond outcomes",
+    "Most common charges",
 ]
-for i, (col, sugg) in enumerate(zip(sugg_cols, suggestions)):
+chip_cols = st.columns(len(suggestions))
+for i, (col, sugg) in enumerate(zip(chip_cols, suggestions)):
     with col:
         if st.button(sugg, key=f"sugg_top_{i}", use_container_width=True):
             st.session_state.ai_pending_question = sugg
             st.rerun()
+
 st.markdown('</div>', unsafe_allow_html=True)
 
 # Voice recording with Web Speech API
@@ -1837,51 +1885,45 @@ if question:
         st.session_state.ai_last_response = response
         st.rerun()
 
-# AI Response area (if there's a pending response)
+# AI Response area — inline card below search
 if st.session_state.get("ai_last_response"):
     response = st.session_state.ai_last_response
 
-    # Show AI explanation
+    # AI explanation card
     st.markdown(f"""
-    <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px;
-                padding: 16px 20px; margin-bottom: 16px;">
-        <div style="font-size: 0.8rem; color: #64748B; font-weight: 600; margin-bottom: 8px;">
-            AI RESPONSE
-        </div>
-        <div style="color: #1E293B; font-size: 0.95rem; line-height: 1.6;">
-            {response['text']}
-        </div>
+    <div class="ai-response-card">
+        <div class="ai-response-label">AI Response</div>
+        <div class="ai-response-text">{response['text']}</div>
     </div>
     """, unsafe_allow_html=True)
 
-    # Show suggested filters as checkable items
+    # Suggested filters card
     if response.get("filters"):
-        st.markdown("""
-        <div style="background: #F0FDF4; border: 1px solid #86EFAC; border-radius: 12px;
-                    padding: 16px; margin-bottom: 16px;">
-            <div style="font-weight: 700; color: #166534; margin-bottom: 12px;">
-                Suggested Filters
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown('<div class="ai-filter-card">', unsafe_allow_html=True)
+        st.markdown('<div style="font-weight: 700; color: #166534; margin-bottom: 8px; font-size: 0.9rem;">Suggested Filters</div>', unsafe_allow_html=True)
 
-        # Render each filter as a checkbox
         for i, f in enumerate(response["filters"]):
             if f.get("type") == "date":
                 display_text = f"{f['label']}: {f.get('from', '')} to {f.get('to', '')}"
             else:
                 display_text = f"{f['label']}: {f.get('display', ', '.join(f.get('values', [])))}"
-            st.checkbox(
-                display_text,
-                value=True,
-                key=f"ai_filter_check_{i}",
-            )
+            st.checkbox(display_text, value=True, key=f"ai_filter_check_{i}")
 
-        # Apply button
-        if st.button("Apply Selected Filters", type="primary", key="apply_ai_filters"):
-            selected_filters = [f for i, f in enumerate(response["filters"])
-                               if st.session_state.get(f"ai_filter_check_{i}", True)]
-            _apply_ai_filters(selected_filters, response.get("tables_needed", []))
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # Action buttons — centered
+        st.markdown('<div style="max-width: 720px; margin: 0 auto;">', unsafe_allow_html=True)
+        _ai_c1, _ai_c2, _ai_c3 = st.columns([3, 2, 5])
+        with _ai_c1:
+            if st.button("Apply Filters", type="primary", key="apply_ai_filters", use_container_width=True):
+                selected_filters = [f for i, f in enumerate(response["filters"])
+                                   if st.session_state.get(f"ai_filter_check_{i}", True)]
+                _apply_ai_filters(selected_filters, response.get("tables_needed", []))
+        with _ai_c2:
+            if st.button("Dismiss", key="dismiss_ai", use_container_width=True):
+                st.session_state.ai_last_response = None
+                st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # Show chart if available
     if response.get("chart"):
@@ -1891,11 +1933,6 @@ if st.session_state.get("ai_last_response"):
     if response.get("sql_result") is not None:
         st.dataframe(response["sql_result"], use_container_width=True, hide_index=True)
         st.caption(f"{len(response['sql_result']):,} rows returned")
-
-    # Dismiss button
-    if st.button("Dismiss", key="dismiss_ai"):
-        st.session_state.ai_last_response = None
-        st.rerun()
 
 
 # ---------------------------------------------------------------------------
@@ -2252,40 +2289,27 @@ def _render_active_filters_bar():
 
 
 # ---------------------------------------------------------------------------
-# Filter pills bar + filter toggle button (in main area)
+# Active filter pills + filter toggle (compact bar)
 # ---------------------------------------------------------------------------
 
 if st.session_state.active_tables:
-    # Prominent filter bar — always visible
     active_filter_count = len(st.session_state.filters)
     _filter_open = st.session_state.get("show_filter_modal", False)
 
+    # Pill bar + filter button on one line
     if active_filter_count > 0:
-        # Show a prominent colored banner with all active filters
-        st.markdown(f"""
-        <div style="background: linear-gradient(135deg, #EFF6FF 0%, #F5F3FF 100%);
-                    border: 1px solid #BFDBFE; border-radius: 12px; padding: 16px 20px;
-                    margin-bottom: 16px;">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                <span style="font-weight: 700; color: #1E40AF; font-size: 0.9rem;">
-                    \U0001f50d {active_filter_count} Active Filter{'s' if active_filter_count != 1 else ''} Applied
-                </span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
         _render_active_filters_bar()
 
-    # Filter button row
-    btn_c1, btn_c2, btn_c3 = st.columns([2, 2, 6])
-    with btn_c1:
-        _btn_label = f"\U0001f50d Filters ({active_filter_count})" if active_filter_count else "\U0001f50d Add Filters"
+    _fb_c1, _fb_c2, _fb_c3 = st.columns([2, 2, 6])
+    with _fb_c1:
+        _btn_label = f"Filters ({active_filter_count})" if active_filter_count else "Filters"
         if st.button(_btn_label, key="main_filter_toggle",
                      type="secondary" if _filter_open else "primary",
                      use_container_width=True):
             st.session_state.show_filter_modal = not _filter_open
             st.rerun()
-    with btn_c2:
-        if active_filter_count and st.button("\u2715 Clear All Filters", key="main_clear_all", use_container_width=True):
+    with _fb_c2:
+        if active_filter_count and st.button("Clear All", key="main_clear_all", use_container_width=True):
             st.session_state.filters = {}
             st.rerun()
 
@@ -2603,7 +2627,7 @@ if _filter_col is not None:
 
 # Render tabs + charts in left column
 with _chart_col:
-    _tab_names = [label for _, label in _active_table_tabs] + ["🔍 Filters"]
+    _tab_names = [label for _, label in _active_table_tabs] + ["Filters"]
     _tabs = st.tabs(_tab_names)
 
     # Render each active table tab
