@@ -350,6 +350,51 @@ def get_lookup_values(table: str, code_col: str, desc_col: str | None = None) ->
         return {}
 
 
+@st.cache_data(ttl=3600)
+def load_all_lookups():
+    """Pre-load all lookup tables into memory for instant code resolution."""
+    con = get_db()
+    if con is None:
+        return {}
+    lookups = {}
+
+    # Each entry: lookup_name -> {code: display_name}
+    mapping = {
+        "nationality": ("tbllookupnationality", "NAT_CODE", "NAT_NAME"),
+        "language": ("tbllanguage", "strCode", "strDescription"),
+        "base_city": ("tbllookupbasecity", "BASE_CITY_CODE", "BASE_CITY_NAME"),
+        "judge": ("tbllookupjudge", "JUDGE_CODE", "JUDGE_NAME"),
+        "decision": ("tbllookupcourtdecision", "strDecCode", "strDecDescription"),
+        "case_type": ("tbllookupcasetype", "strCode", "strDescription"),
+        "charge": ("tbllookupcharges", "strCode", "strCodeDescription"),
+        "adjournment": ("tbladjournmentcodes", "strcode", "strDesciption"),
+        "application": ("tbllookup_appln", "strcode", "strdescription"),
+        "hearing_loc": ("tbllookuphloc", "HEARING_LOC_CODE", "HEARING_LOC_NAME"),
+        "custody": ("tbllookupcustodystatus", "strCode", "strDescription"),
+        "cal_type": ("tbllookupcal_type", "strCalTypeCode", "strCalTypeDescription"),
+        "schedule_type": ("tbllookupschedule_type", "strCode", "strDescription"),
+        "state": ("tbllookupstate", "state_code", "state_name"),
+        "motion_type": ("tbllookupmotiontype", "strMotionCode", "strMotionDesc"),
+        "filed_by": ("tbllookupfiledby", "strCode", "strDescription"),
+        "appeal_type": ("tbllookupappealtype", "strApplCode", "strApplDescription"),
+        "bia_decision": ("tbllookupbiadecision", "strCode", "strDescription"),
+        "court_app_dec": ("tbllookupcourtappdecisions", "strCourtApplnDecCode", "strCourtApplnDecDesc"),
+        "notice": ("tbllookupnotice", "Notice_Code", "Notice_Disp"),
+    }
+
+    for key, (table, code_col, desc_col) in mapping.items():
+        try:
+            rows = con.execute(f'SELECT "{code_col}", "{desc_col}" FROM "{table}"').fetchall()
+            lookups[key] = {str(r[0]).strip(): str(r[1]).strip() for r in rows if r[0] and r[1]}
+        except Exception:
+            lookups[key] = {}
+
+    return lookups
+
+
+LOOKUPS = load_all_lookups()
+
+
 # ---------------------------------------------------------------------------
 # Helpers — chart creation
 # ---------------------------------------------------------------------------
@@ -466,6 +511,26 @@ st.sidebar.markdown("""
 
 st.sidebar.divider()
 
+# Date type selector — FIRST filter in sidebar
+date_type = st.sidebar.selectbox(
+    "Date Type",
+    options=["Completion Date", "Filing Date", "Hearing Date"],
+    index=0,
+    help="Which date to filter by across the dashboard",
+)
+
+# Map date_type to the correct column per table
+_DATE_COL_MAP = {
+    "Completion Date": {"proc": "COMP_DATE", "sched": "ADJ_DATE", "motion": "COMP_DATE"},
+    "Filing Date": {"proc": "OSC_DATE", "sched": "OSC_DATE", "motion": "OSC_DATE"},
+    "Hearing Date": {"proc": "HEARING_DATE", "sched": "ADJ_DATE", "motion": "COMP_DATE"},
+}
+_active_date_cols = _DATE_COL_MAP[date_type]
+_proc_date = _active_date_cols["proc"]   # shorthand for proc queries
+_sched_date = _active_date_cols["sched"]  # shorthand for schedule queries
+
+st.sidebar.markdown("")
+
 # Date range
 st.sidebar.markdown("**Date Range**")
 d1, d2 = st.sidebar.columns(2)
@@ -479,94 +544,55 @@ date_to_str = date_to.strftime("%Y-%m-%d")
 
 st.sidebar.divider()
 
-# Court filter
-@st.cache_data(ttl=3600)
-def get_base_cities():
-    df = run_query("""
-        SELECT DISTINCT b.BASE_CITY_CODE as code, l.BASE_CITY_NAME as name
-        FROM b_tblproceeding b
-        LEFT JOIN tbllookupbasecity l ON b.BASE_CITY_CODE = l.BASE_CITY_CODE
-        WHERE b.BASE_CITY_CODE IS NOT NULL AND b.BASE_CITY_CODE != ''
-        ORDER BY l.BASE_CITY_NAME
-    """)
-    if df.empty:
-        return {}
-    return {row["code"]: f"{row['name']} ({row['code']})" if row["name"] else row["code"]
-            for _, row in df.iterrows()}
-
-base_cities = get_base_cities()
+# Court filter — uses pre-loaded lookups
+_court_lookup = LOOKUPS.get("base_city", {})
 selected_courts = st.sidebar.multiselect(
     "Immigration Court",
-    options=list(base_cities.keys()),
-    format_func=lambda x: base_cities.get(x, x),
+    options=sorted(_court_lookup.keys(), key=lambda x: _court_lookup.get(x, x)),
+    format_func=lambda x: _court_lookup.get(x, x),
     placeholder="All Courts",
 )
 
 # Nationality filter
-@st.cache_data(ttl=3600)
-def get_nationalities():
-    df = run_query("""
-        SELECT DISTINCT NAT_CODE as code, NAT_NAME as name
-        FROM tbllookupnationality
-        WHERE NAT_CODE IS NOT NULL AND NAT_NAME IS NOT NULL
-        ORDER BY NAT_NAME
-    """)
-    if df.empty:
-        return {}
-    return {row["code"]: row["name"] for _, row in df.iterrows() if row["name"]}
-
-nationalities = get_nationalities()
+_nat_lookup = LOOKUPS.get("nationality", {})
 selected_nats = st.sidebar.multiselect(
     "Nationality",
-    options=list(nationalities.keys()),
-    format_func=lambda x: nationalities.get(x, x),
+    options=sorted(_nat_lookup.keys(), key=lambda x: _nat_lookup.get(x, x)),
+    format_func=lambda x: _nat_lookup.get(x, x),
     placeholder="All Nationalities",
 )
 
 # Case type filter
-@st.cache_data(ttl=3600)
-def get_case_types():
-    df = run_query("""
-        SELECT DISTINCT CASE_TYPE FROM b_tblproceeding
-        WHERE CASE_TYPE IS NOT NULL AND CASE_TYPE != ''
-        ORDER BY CASE_TYPE
-    """)
-    if df.empty:
-        return []
-    return df["CASE_TYPE"].tolist()
-
-case_types = get_case_types()
+_ct_lookup = LOOKUPS.get("case_type", {})
 selected_case_types = st.sidebar.multiselect(
     "Case Type",
-    options=case_types,
+    options=sorted(_ct_lookup.keys(), key=lambda x: _ct_lookup.get(x, x)),
+    format_func=lambda x: _ct_lookup.get(x, x),
     placeholder="All Types",
 )
 
 # Judge filter
-@st.cache_data(ttl=3600)
-def get_judges():
-    df = run_query("""
-        SELECT DISTINCT JUDGE_CODE as code, JUDGE_NAME as name
-        FROM tbllookupjudge
-        WHERE JUDGE_CODE IS NOT NULL AND JUDGE_NAME IS NOT NULL
-            AND JUDGE_NAME != '<All Judges>'
-        ORDER BY JUDGE_NAME
-    """)
-    if df.empty:
-        return {}
-    return {row["code"]: row["name"] for _, row in df.iterrows() if row["name"]}
-
-judges = get_judges()
+_judge_lookup = {k: v for k, v in LOOKUPS.get("judge", {}).items() if v != "<All Judges>"}
 selected_judges = st.sidebar.multiselect(
     "Immigration Judge",
-    options=list(judges.keys()),
-    format_func=lambda x: judges.get(x, x),
+    options=sorted(_judge_lookup.keys(), key=lambda x: _judge_lookup.get(x, x)),
+    format_func=lambda x: _judge_lookup.get(x, x),
     placeholder="All Judges",
+)
+
+# Custody status filter
+_custody_lookup = LOOKUPS.get("custody", {})
+selected_custody = st.sidebar.multiselect(
+    "Custody Status",
+    options=sorted(_custody_lookup.keys(), key=lambda x: _custody_lookup.get(x, x)),
+    format_func=lambda x: _custody_lookup.get(x, x),
+    placeholder="All Statuses",
 )
 
 st.sidebar.divider()
 st.sidebar.markdown(
     '<div style="text-align:center; font-size:0.65rem; color:#475569; padding:8px 0;">'
+    f'Filtering by: {date_type}<br>'
     f'Data period: {date_from_str} to {date_to_str}<br>'
     '160M+ records &middot; 89 tables &middot; DuckDB'
     '</div>',
@@ -580,15 +606,23 @@ st.sidebar.markdown(
 
 def build_where(
     proc_alias: str = "p",
-    date_col: str = "COMP_DATE",
+    date_col: str | None = None,
     case_alias: str | None = None,
+    table_type: str = "proc",
 ) -> tuple[str, bool]:
     """Build SQL WHERE clause from sidebar filters.
+
+    table_type: "proc" | "sched" | "motion" — selects the right date column
+    for the active date_type. Override with explicit date_col if needed.
 
     Returns (where_clause, needs_case_join).
     """
     conditions: list[str] = []
     needs_case_join = False
+
+    # Resolve date column: explicit override > date type mapping
+    if date_col is None:
+        date_col = _active_date_cols.get(table_type, "COMP_DATE")
 
     conditions.append(
         f'TRY_CAST({proc_alias}."{date_col}" AS TIMESTAMP) >= \'{date_from_str}\''
@@ -613,6 +647,12 @@ def build_where(
         ca = case_alias or "c"
         quoted = ", ".join(f"'{n}'" for n in selected_nats)
         conditions.append(f'{ca}."NAT" IN ({quoted})')
+
+    if selected_custody:
+        needs_case_join = True
+        ca = case_alias or "c"
+        quoted = ", ".join(f"'{s}'" for s in selected_custody)
+        conditions.append(f'{ca}."CUSTODY" IN ({quoted})')
 
     return " AND ".join(conditions), needs_case_join
 
@@ -660,7 +700,7 @@ tab_exec, tab_outcomes, tab_courts, tab_judges, tab_explore, tab_ai = st.tabs([
 
 # ===== TAB 1: Executive Summary =============================================
 with tab_exec:
-    where, needs_join = build_where("p", "COMP_DATE", "c")
+    where, needs_join = build_where("p", case_alias="c", table_type="proc")
     from_clause = _proc_from("p", "c", needs_join)
 
     # --- KPI row ---
@@ -688,7 +728,7 @@ with tab_exec:
         SELECT COUNT(*) as completed_this_year
         FROM {from_clause}
         WHERE {where}
-            AND TRY_CAST(p.COMP_DATE AS TIMESTAMP) >= '{this_year}-01-01'
+            AND TRY_CAST(p."{_proc_date}" AS TIMESTAMP) >= '{this_year}-01-01'
     """
     kpi_year = run_query(kpi_year_sql)
 
@@ -714,7 +754,7 @@ with tab_exec:
     # --- Cases over time (area chart) ---
     time_sql = f"""
         SELECT
-            DATE_TRUNC('month', TRY_CAST(p.COMP_DATE AS TIMESTAMP)) as month,
+            DATE_TRUNC('month', TRY_CAST(p."{_proc_date}" AS TIMESTAMP)) as month,
             COUNT(*) as cases
         FROM {from_clause}
         WHERE {where}
@@ -729,7 +769,7 @@ with tab_exec:
     col_left, col_right = st.columns(2)
 
     # Always need case join for nationality
-    where_nat, _ = build_where("p", "COMP_DATE", "c")
+    where_nat, _ = build_where("p", case_alias="c", table_type="proc")
     from_nat = _proc_from("p", "c", needs_case_join=True)
 
     with col_left:
@@ -776,13 +816,13 @@ with tab_exec:
 
 # ===== TAB 2: Case Outcomes ==================================================
 with tab_outcomes:
-    where, needs_join = build_where("p", "COMP_DATE", "c")
+    where, needs_join = build_where("p", case_alias="c", table_type="proc")
     from_clause = _proc_from("p", "c", needs_join)
 
     # --- Grant vs Denial rate over time ---
     gd_sql = f"""
         SELECT
-            DATE_TRUNC('quarter', TRY_CAST(p.COMP_DATE AS TIMESTAMP)) as quarter,
+            DATE_TRUNC('quarter', TRY_CAST(p."{_proc_date}" AS TIMESTAMP)) as quarter,
             SUM(CASE WHEN p.DEC_CODE IN ('G','A') THEN 1 ELSE 0 END) as grants,
             SUM(CASE WHEN p.DEC_CODE IN ('D','R','X') THEN 1 ELSE 0 END) as denials,
             ROUND(100.0 * SUM(CASE WHEN p.DEC_CODE IN ('G','A') THEN 1 ELSE 0 END)
@@ -840,7 +880,7 @@ with tab_outcomes:
     # --- In Absentia rate ---
     abs_sql = f"""
         SELECT
-            DATE_TRUNC('quarter', TRY_CAST(p.COMP_DATE AS TIMESTAMP)) as quarter,
+            DATE_TRUNC('quarter', TRY_CAST(p."{_proc_date}" AS TIMESTAMP)) as quarter,
             SUM(CASE WHEN p.ABSENTIA = 'Y' THEN 1 ELSE 0 END) as absentia,
             COUNT(*) as total,
             ROUND(100.0 * SUM(CASE WHEN p.ABSENTIA = 'Y' THEN 1 ELSE 0 END) / COUNT(*), 1) as absentia_rate
@@ -906,7 +946,7 @@ with tab_outcomes:
         )
 
     # --- Outcome by nationality heatmap ---
-    where_nat_out, _ = build_where("p", "COMP_DATE", "c")
+    where_nat_out, _ = build_where("p", case_alias="c", table_type="proc")
     from_nat_out = _proc_from("p", "c", needs_case_join=True)
 
     heat_sql = f"""
@@ -922,9 +962,9 @@ with tab_outcomes:
             FROM b_tblproceeding p2
             LEFT JOIN tbllookupcourtdecision d ON p2.DEC_CODE = d.strDecCode
                 AND p2.CASE_TYPE = d.strCaseType
-            WHERE TRY_CAST(p2.COMP_DATE AS TIMESTAMP) >= '{date_from_str}'
-                AND TRY_CAST(p2.COMP_DATE AS TIMESTAMP) <= '{date_to_str}'
-                AND p2.COMP_DATE IS NOT NULL
+            WHERE TRY_CAST(p2."{_proc_date}" AS TIMESTAMP) >= '{date_from_str}'
+                AND TRY_CAST(p2."{_proc_date}" AS TIMESTAMP) <= '{date_to_str}'
+                AND p2."{_proc_date}" IS NOT NULL
                 AND d.strDecDescription IS NOT NULL
             GROUP BY 1 ORDER BY COUNT(*) DESC LIMIT 5
         )
@@ -962,7 +1002,7 @@ with tab_outcomes:
 
 # ===== TAB 3: Court Performance ==============================================
 with tab_courts:
-    where, needs_join = build_where("p", "COMP_DATE", "c")
+    where, needs_join = build_where("p", case_alias="c", table_type="proc")
     from_clause = _proc_from("p", "c", needs_join)
 
     # --- Court comparison table ---
@@ -1051,7 +1091,7 @@ with tab_courts:
         if selected_court_code:
             ct_trend_sql = f"""
                 SELECT
-                    DATE_TRUNC('quarter', TRY_CAST(p.COMP_DATE AS TIMESTAMP)) as quarter,
+                    DATE_TRUNC('quarter', TRY_CAST(p."{_proc_date}" AS TIMESTAMP)) as quarter,
                     COUNT(*) as cases,
                     ROUND(100.0 * SUM(CASE WHEN p.DEC_CODE IN ('G','A') THEN 1 ELSE 0 END)
                         / NULLIF(SUM(CASE WHEN p.DEC_CODE IN ('G','A','D','R','X') THEN 1 ELSE 0 END), 0), 1) as grant_rate
@@ -1090,7 +1130,7 @@ with tab_courts:
 
 # ===== TAB 4: Judge Analytics ================================================
 with tab_judges:
-    where, needs_join = build_where("p", "COMP_DATE", "c")
+    where, needs_join = build_where("p", case_alias="c", table_type="proc")
     from_clause = _proc_from("p", "c", needs_join)
 
     # --- Judge scorecard ---
@@ -1204,7 +1244,7 @@ with tab_judges:
         if selected_judge_code:
             jt_sql = f"""
                 SELECT
-                    DATE_TRUNC('quarter', TRY_CAST(p.COMP_DATE AS TIMESTAMP)) as quarter,
+                    DATE_TRUNC('quarter', TRY_CAST(p."{_proc_date}" AS TIMESTAMP)) as quarter,
                     COUNT(*) as cases,
                     ROUND(100.0 * SUM(CASE WHEN p.DEC_CODE IN ('G','A') THEN 1 ELSE 0 END)
                         / NULLIF(SUM(CASE WHEN p.DEC_CODE IN ('G','A','D','R','X') THEN 1 ELSE 0 END), 0), 1) as grant_rate
@@ -1322,9 +1362,36 @@ GROUP BY 1 ORDER BY 1""",
     default_sql = st.session_state.get("explore_sql_input", list(example_queries.values())[0])
     sql = st.text_area("SQL Query", value=default_sql, height=200, key="explore_sql_area")
 
-    run_col, _ = st.columns([1, 5])
+    run_col, resolve_col, _ = st.columns([1, 2, 3])
     with run_col:
         run_clicked = st.button("Run Query", type="primary", key="run_explore")
+    with resolve_col:
+        resolve_codes_on = st.checkbox("Resolve lookup codes", value=True, key="resolve_codes_toggle")
+
+    def resolve_codes(df: pd.DataFrame) -> pd.DataFrame:
+        """Replace code columns with human-readable names."""
+        code_mappings = {
+            "NAT": "nationality",
+            "LANG": "language",
+            "BASE_CITY_CODE": "base_city",
+            "IJ_CODE": "judge",
+            "DEC_CODE": "decision",
+            "CASE_TYPE": "case_type",
+            "CHARGE": "charge",
+            "ADJ_RSN": "adjournment",
+            "APPL_CODE": "application",
+            "HEARING_LOC_CODE": "hearing_loc",
+            "CUSTODY": "custody",
+            "CAL_TYPE": "cal_type",
+            "MOTION_TYPE": "motion_type",
+        }
+        df = df.copy()
+        for col, lookup_key in code_mappings.items():
+            if col in df.columns and lookup_key in LOOKUPS:
+                df[col] = df[col].map(
+                    lambda x, lk=lookup_key: LOOKUPS[lk].get(str(x).strip(), x) if pd.notna(x) else x
+                )
+        return df
 
     if run_clicked:
         # Add LIMIT if not present
@@ -1335,7 +1402,8 @@ GROUP BY 1 ORDER BY 1""",
         with st.spinner("Executing..."):
             result = run_query(safe_sql)
             if not result.empty:
-                st.dataframe(result, use_container_width=True, hide_index=True)
+                display_result = resolve_codes(result) if resolve_codes_on else result
+                st.dataframe(display_result, use_container_width=True, hide_index=True)
                 st.caption(f"{len(result):,} rows returned")
 
                 # Auto-chart
@@ -1448,26 +1516,42 @@ with tab_ai:
 
 CRITICAL: All columns in the 6 main tables (a_tblcase, b_tblproceeding, tbl_schedule, tbl_court_appln, tbl_court_motions, b_tblproceedcharges) were imported as VARCHAR. You MUST use TRY_CAST() for date and number comparisons.
 
+The user's current date type filter is: "{date_type}"
+Date column mapping:
+- "Completion Date" -> b_tblproceeding.COMP_DATE, tbl_schedule.ADJ_DATE, tbl_court_motions.COMP_DATE
+- "Filing Date" -> b_tblproceeding.OSC_DATE, tbl_schedule.OSC_DATE, tbl_court_motions.OSC_DATE
+- "Hearing Date" -> b_tblproceeding.HEARING_DATE, tbl_schedule.ADJ_DATE
+Use the appropriate date column based on the user's selection when filtering by date.
+
 Key tables and relationships:
 - a_tblcase: Case master. PK: IDNCASE (BIGINT). Has NAT (nationality code), LANG (language code), CUSTODY, CASE_TYPE, C_BIRTHDATE (VARCHAR), Sex, DATE_OF_ENTRY (TIMESTAMP), LATEST_HEARING (TIMESTAMP), LPR.
-- b_tblproceeding: Main proceedings table. PK: IDNPROCEEDING (VARCHAR). IDNCASE links to a_tblcase (VARCHAR — join with TRY_CAST(p.IDNCASE AS BIGINT) = c.IDNCASE). COMP_DATE (VARCHAR) is completion date. DEC_CODE (VARCHAR), IJ_CODE=judge, BASE_CITY_CODE=court, NAT, LANG, ABSENTIA, CASE_TYPE.
-- tbl_schedule: Hearing schedule. IDNSCHEDULE PK. IDNPROCEEDING, IDNCASE (both VARCHAR). ADJ_DATE (VARCHAR)=hearing date, ADJ_RSN=adjournment reason, CAL_TYPE, IJ_CODE.
+- b_tblproceeding: Main proceedings table. PK: IDNPROCEEDING (VARCHAR). IDNCASE links to a_tblcase (VARCHAR — join with TRY_CAST(p.IDNCASE AS BIGINT) = c.IDNCASE). COMP_DATE (VARCHAR) is completion date, OSC_DATE (VARCHAR) is filing date, HEARING_DATE (VARCHAR). DEC_CODE (VARCHAR), IJ_CODE=judge, BASE_CITY_CODE=court, NAT, LANG, ABSENTIA, CASE_TYPE.
+- tbl_schedule: Hearing schedule. IDNSCHEDULE PK. IDNPROCEEDING, IDNCASE (both VARCHAR). ADJ_DATE (VARCHAR)=hearing date, OSC_DATE (VARCHAR)=filing date, ADJ_RSN=adjournment reason, CAL_TYPE, IJ_CODE.
 - tbl_court_appln: Applications filed. IDNPROCEEDING, IDNCASE. APPL_CODE=application type, APPL_DEC=decision.
 - b_tblproceedcharges: Charges. IDNPROCEEDING, IDNCASE. CHARGE=charge code.
-- tbl_court_motions: Motions. IDNPROCEEDING, IDNCASE. COMP_DATE, MOTION_RECD_DATE (both VARCHAR).
+- tbl_court_motions: Motions. IDNPROCEEDING, IDNCASE. COMP_DATE, OSC_DATE, MOTION_RECD_DATE (all VARCHAR).
 - tbl_repsassigned: Attorney assignments. IDNCASE.
 
-Key lookup tables:
+Key lookup tables — ALWAYS JOIN these for human-readable output:
 - tbllookupjudge: JUDGE_CODE -> JUDGE_NAME
 - tbllookupbasecity: BASE_CITY_CODE -> BASE_CITY_NAME
 - tbllookupnationality: NAT_CODE -> NAT_NAME
-- tbllookupcourtdecision: strDecCode -> strDecDescription (also strCaseType, strDecType)
+- tbllookupcourtdecision: strDecCode -> strDecDescription (also strCaseType for precise match)
 - tbllanguage: strCode -> strDescription
 - tbllookupcharges: strCode -> strCodeDescription
 - tbladjournmentcodes: strcode -> strDesciption (typo in original data)
 - tbllookup_appln: strcode -> strdescription
 - tbllookuphloc: HEARING_LOC_CODE -> HEARING_LOC_NAME
 - tbllookupcasetype: strCode -> strDescription
+- tbllookupcustodystatus: strCode -> strDescription
+- tbllookupcal_type: strCalTypeCode -> strCalTypeDescription
+- tbllookupschedule_type: strCode -> strDescription
+- tbllookupmotiontype: strMotionCode -> strMotionDesc
+- tbllookupfiledby: strCode -> strDescription
+- tbllookupappealtype: strApplCode -> strApplDescription
+- tbllookupbiadecision: strCode -> strDescription
+- tbllookupcourtappdecisions: strCourtApplnDecCode -> strCourtApplnDecDesc
+- tbllookupnotice: Notice_Code -> Notice_Disp
 
 Key relationships:
 - IDNCASE links a_tblcase -> b_tblproceeding, tbl_schedule, etc.
@@ -1480,7 +1564,7 @@ Full schema:
 
 Rules:
 1. Write DuckDB-compatible SQL wrapped in ```sql ... ``` code blocks.
-2. Use JOINs to lookup tables for human-readable names.
+2. ALWAYS JOIN lookup tables for human-readable names — never show raw codes to the user. Use COALESCE(lookup.name, raw_code) as a fallback.
 3. ALWAYS use TRY_CAST for date/number columns.
 4. Keep results concise (LIMIT 1000 max).
 5. After SQL, briefly explain what the query does and key findings to look for.
