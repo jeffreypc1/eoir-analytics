@@ -550,6 +550,7 @@ def load_all_lookups():
         "bia_decision": ("tbllookupbiadecision", "strCode", "strDescription"),
         "court_app_dec": ("tbllookupcourtappdecisions", "strCourtApplnDecCode", "strCourtApplnDecDesc"),
         "notice": ("tbllookupnotice", "Notice_Code", "Notice_Disp"),
+        "case_priority": ("tbllookup_casepriority", "strCode", "strDescription"),
     }
 
     for key, (table, code_col, desc_col) in mapping.items():
@@ -558,6 +559,18 @@ def load_all_lookups():
             lookups[key] = {str(r[0]).strip(): str(r[1]).strip() for r in rows if r[0] and r[1]}
         except Exception:
             lookups[key] = {}
+
+    # Inline lookups for fields without dedicated tables
+    lookups["lpr"] = {"0": "Not LPR", "1": "Lawful Permanent Resident"}
+    lookups["sex"] = {"M": "Male", "F": "Female"}
+    lookups["absentia"] = {"Y": "Yes — In Absentia", "N": "No — Present"}
+    lookups["crim_ind"] = {"Y": "Yes — Criminal", "N": "No"}
+    lookups["ihp"] = {"Y": "Yes — Institutional", "N": "No"}
+    lookups["aggravate_felon"] = {"Y": "Yes — Aggravated Felon", "N": "No"}
+    lookups["site_type"] = {"M": "Master Calendar", "I": "Individual"}
+    lookups["chg_status"] = {"S": "Sustained", "O": "Original", "N": "Not Sustained", "W": "Withdrawn"}
+    lookups["atty_level"] = {"COURT": "Court Level", "BOARD": "Board Level"}
+    lookups["atty_type"] = {"ALIEN": "Respondent Attorney", "INS": "Government Attorney"}
 
     return lookups
 
@@ -693,17 +706,17 @@ FIELD_META = {
                  "lookup_table": "tbllanguage", "code_col": "strCode", "desc_col": "strDescription"},
         "CUSTODY": {"label": "Custody Status", "type": "lookup", "lookup": "custody",
                     "lookup_table": "tbllookupcustodystatus", "code_col": "strCode", "desc_col": "strDescription"},
-        "Sex": {"label": "Gender", "type": "text"},
+        "Sex": {"label": "Gender", "type": "lookup", "lookup": "sex"},
         "CASE_TYPE": {"label": "Case Type", "type": "lookup", "lookup": "case_type",
                       "lookup_table": "tbllookupcasetype", "code_col": "strCode", "desc_col": "strDescription"},
-        "LPR": {"label": "LPR Status", "type": "boolean"},
-        "ALIEN_STATE": {"label": "Respondent State", "type": "text"},
+        "LPR": {"label": "LPR Status", "type": "lookup", "lookup": "lpr"},
+        "ALIEN_STATE": {"label": "Respondent State", "type": "lookup", "lookup": "state"},
         "ALIEN_CITY": {"label": "Respondent City", "type": "text"},
-        "SITE_TYPE": {"label": "Site Type", "type": "text"},
+        "SITE_TYPE": {"label": "Site Type", "type": "lookup", "lookup": "site_type"},
         "DATE_OF_ENTRY": {"label": "Date of US Entry", "type": "date"},
         "C_BIRTHDATE": {"label": "Date of Birth", "type": "date"},
         "E_28_DATE": {"label": "E-28 Date", "type": "date"},
-        "CASEPRIORITY_CODE": {"label": "Case Priority", "type": "text"},
+        "CASEPRIORITY_CODE": {"label": "Case Priority", "type": "lookup", "lookup": "case_priority"},
         "CORRECTIONAL_FAC": {"label": "Correctional Facility", "type": "text"},
     },
     "b_tblproceeding": {
@@ -724,10 +737,10 @@ FIELD_META = {
                  "lookup_table": "tbllanguage", "code_col": "strCode", "desc_col": "strDescription"},
         "CUSTODY": {"label": "Custody", "type": "lookup", "lookup": "custody",
                     "lookup_table": "tbllookupcustodystatus", "code_col": "strCode", "desc_col": "strDescription"},
-        "ABSENTIA": {"label": "In Absentia", "type": "boolean"},
-        "CRIM_IND": {"label": "Criminal Indicator", "type": "boolean"},
-        "IHP": {"label": "Institutional Hearing", "type": "boolean"},
-        "AGGRAVATE_FELON": {"label": "Aggravated Felon", "type": "boolean"},
+        "ABSENTIA": {"label": "In Absentia", "type": "lookup", "lookup": "absentia"},
+        "CRIM_IND": {"label": "Criminal Indicator", "type": "lookup", "lookup": "crim_ind"},
+        "IHP": {"label": "Institutional Hearing", "type": "lookup", "lookup": "ihp"},
+        "AGGRAVATE_FELON": {"label": "Aggravated Felon", "type": "lookup", "lookup": "aggravate_felon"},
         "COMP_DATE": {"label": "Completion Date", "type": "date"},
         "OSC_DATE": {"label": "Filing Date (OSC)", "type": "date"},
         "HEARING_DATE": {"label": "Last Hearing Date", "type": "date"},
@@ -759,7 +772,7 @@ FIELD_META = {
     "b_tblproceedcharges": {
         "CHARGE": {"label": "Charge", "type": "lookup", "lookup": "charge",
                    "lookup_table": "tbllookupcharges", "code_col": "strCode", "desc_col": "strCodeDescription"},
-        "CHG_STATUS": {"label": "Charge Status", "type": "text"},
+        "CHG_STATUS": {"label": "Charge Status", "type": "lookup", "lookup": "chg_status"},
     },
     "tbl_court_motions": {
         "COMP_DATE": {"label": "Motion Decision Date", "type": "date"},
@@ -779,8 +792,8 @@ FIELD_META = {
         "COMP_DATE": {"label": "Bond Decision Date", "type": "date"},
     },
     "tbl_repsassigned": {
-        "STRATTYLEVEL": {"label": "Attorney Level", "type": "text"},
-        "STRATTYTYPE": {"label": "Attorney Type", "type": "text"},
+        "STRATTYLEVEL": {"label": "Attorney Level", "type": "lookup", "lookup": "atty_level"},
+        "STRATTYTYPE": {"label": "Attorney Type", "type": "lookup", "lookup": "atty_type"},
         "BASE_CITY_CODE": {"label": "Court", "type": "lookup", "lookup": "base_city",
                            "lookup_table": "tbllookupbasecity", "code_col": "BASE_CITY_CODE", "desc_col": "BASE_CITY_NAME"},
         "E_27_DATE": {"label": "E-27 Date", "type": "date"},
