@@ -1040,16 +1040,53 @@ TABLE_ANALYSIS = {
 }
 
 # JOIN relationships: how each table joins to b_tblproceeding (base)
+# JOIN templates per base table type.
+# Some tables only have IDNCASE (no IDNPROCEEDING), so we need different JOINs
+# depending on what the base table is.
+def _get_join_sql(target_table: str, target_alias: str, base_table: str, base_alias: str) -> str:
+    """Get the JOIN SQL to attach target_table to base_table."""
+    # Tables that only have IDNCASE (no IDNPROCEEDING)
+    _case_only_tables = {"a_tblcase", "tbl_repsassigned", "tbl_custodyhistory"}
+
+    # JOIN to a_tblcase (has BIGINT IDNCASE)
+    if target_table == "a_tblcase":
+        if base_table in _case_only_tables:
+            return f"JOIN a_tblcase {target_alias} ON {base_alias}.IDNCASE = {target_alias}.IDNCASE"
+        else:
+            return f"JOIN a_tblcase {target_alias} ON TRY_CAST({base_alias}.IDNCASE AS BIGINT) = {target_alias}.IDNCASE"
+
+    # JOIN from a_tblcase (no IDNPROCEEDING) to other tables — can only use IDNCASE
+    if base_table in _case_only_tables:
+        if target_table == "tblappeal":
+            return f"JOIN tblappeal {target_alias} ON {base_alias}.IDNCASE = {target_alias}.idncase"
+        elif target_table == "tbl_repsassigned":
+            return f"JOIN tbl_repsassigned {target_alias} ON {base_alias}.IDNCASE = {target_alias}.IDNCASE"
+        elif target_table == "tbl_custodyhistory":
+            return f"JOIN tbl_custodyhistory {target_alias} ON {base_alias}.IDNCASE = {target_alias}.IDNCASE"
+        else:
+            # For tables with IDNPROCEEDING, join via IDNCASE only (broader match)
+            return f"JOIN {target_table} {target_alias} ON {base_alias}.IDNCASE = {target_alias}.IDNCASE"
+
+    # JOIN from tables that have both IDNCASE and IDNPROCEEDING
+    if target_table in ("tbl_repsassigned", "tbl_custodyhistory"):
+        return f"JOIN {target_table} {target_alias} ON {base_alias}.IDNCASE = {target_alias}.IDNCASE"
+    elif target_table == "tblappeal":
+        return f"JOIN tblappeal {target_alias} ON {base_alias}.IDNPROCEEDING = {target_alias}.idnProceeding AND {base_alias}.IDNCASE = {target_alias}.idncase"
+    else:
+        return f"JOIN {target_table} {target_alias} ON {base_alias}.IDNPROCEEDING = {target_alias}.IDNPROCEEDING AND {base_alias}.IDNCASE = {target_alias}.IDNCASE"
+
+
+# Legacy compatibility — used by some code that references TABLE_JOINS dict
 TABLE_JOINS = {
     "a_tblcase": "JOIN a_tblcase {alias} ON TRY_CAST({base}.IDNCASE AS BIGINT) = {alias}.IDNCASE",
-    "tbl_schedule": "JOIN tbl_schedule {alias} ON {base}.IDNPROCEEDING = {alias}.IDNPROCEEDING AND {base}.IDNCASE = {alias}.IDNCASE",
-    "tbl_court_appln": "JOIN tbl_court_appln {alias} ON {base}.IDNPROCEEDING = {alias}.IDNPROCEEDING AND {base}.IDNCASE = {alias}.IDNCASE",
-    "b_tblproceedcharges": "JOIN b_tblproceedcharges {alias} ON {base}.IDNPROCEEDING = {alias}.IDNPROCEEDING AND {base}.IDNCASE = {alias}.IDNCASE",
-    "tbl_court_motions": "JOIN tbl_court_motions {alias} ON {base}.IDNPROCEEDING = {alias}.IDNPROCEEDING AND {base}.IDNCASE = {alias}.IDNCASE",
-    "d_tblassociatedbond": "JOIN d_tblassociatedbond {alias} ON {base}.IDNPROCEEDING = {alias}.IDNPROCEEDING AND {base}.IDNCASE = {alias}.IDNCASE",
+    "tbl_schedule": "JOIN tbl_schedule {alias} ON {base}.IDNCASE = {alias}.IDNCASE",
+    "tbl_court_appln": "JOIN tbl_court_appln {alias} ON {base}.IDNCASE = {alias}.IDNCASE",
+    "b_tblproceedcharges": "JOIN b_tblproceedcharges {alias} ON {base}.IDNCASE = {alias}.IDNCASE",
+    "tbl_court_motions": "JOIN tbl_court_motions {alias} ON {base}.IDNCASE = {alias}.IDNCASE",
+    "d_tblassociatedbond": "JOIN d_tblassociatedbond {alias} ON {base}.IDNCASE = {alias}.IDNCASE",
     "tbl_repsassigned": "JOIN tbl_repsassigned {alias} ON {base}.IDNCASE = {alias}.IDNCASE",
     "tbl_custodyhistory": "JOIN tbl_custodyhistory {alias} ON {base}.IDNCASE = {alias}.IDNCASE",
-    "tblappeal": "JOIN tblappeal {alias} ON {base}.IDNPROCEEDING = {alias}.idnProceeding AND {base}.IDNCASE = {alias}.idncase",
+    "tblappeal": "JOIN tblappeal {alias} ON {base}.IDNCASE = {alias}.idncase",
 }
 
 # Default configuration
