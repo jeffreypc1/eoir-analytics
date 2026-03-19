@@ -6,6 +6,7 @@ of EOIR immigration court data in DuckDB.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import sys
@@ -290,6 +291,51 @@ button[data-baseweb="tab"][aria-selected="true"] {{
     overflow: hidden;
 }}
 
+/* ── Sidebar filter group expanders ── */
+section[data-testid="stSidebar"] .streamlit-expanderHeader {{
+    background: rgba(255,255,255,0.04) !important;
+    border: 1px solid rgba(255,255,255,0.06) !important;
+    border-radius: 10px !important;
+    padding: 8px 14px !important;
+    font-size: 0.82rem !important;
+    font-weight: 600 !important;
+    color: #E2E8F0 !important;
+    transition: background 0.15s ease !important;
+}}
+section[data-testid="stSidebar"] .streamlit-expanderHeader:hover {{
+    background: rgba(255,255,255,0.08) !important;
+}}
+section[data-testid="stSidebar"] .streamlit-expanderContent {{
+    border: 1px solid rgba(255,255,255,0.04) !important;
+    border-top: none !important;
+    border-radius: 0 0 10px 10px !important;
+    padding: 8px 10px 4px 10px !important;
+    background: rgba(0,0,0,0.12) !important;
+}}
+section[data-testid="stSidebar"] .filter-badge {{
+    display: inline-block;
+    background: rgba(59,130,246,0.2);
+    color: {ACCENT_BLUE};
+    padding: 1px 8px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    margin-left: 6px;
+}}
+section[data-testid="stSidebar"] .stButton > button {{
+    background: rgba(255,255,255,0.06) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    border-radius: 8px !important;
+    color: #CBD5E1 !important;
+    font-size: 0.78rem !important;
+    font-weight: 500 !important;
+    transition: all 0.15s ease !important;
+}}
+section[data-testid="stSidebar"] .stButton > button:hover {{
+    background: rgba(255,255,255,0.12) !important;
+    border-color: rgba(255,255,255,0.2) !important;
+}}
+
 /* ── Reduce default spacing ── */
 .block-container {{
     padding-top: 1rem !important;
@@ -393,6 +439,100 @@ def load_all_lookups():
 
 
 LOOKUPS = load_all_lookups()
+
+
+# ---------------------------------------------------------------------------
+# Dynamic Filter Configuration
+# ---------------------------------------------------------------------------
+FILTER_CONFIG_PATH = Path(__file__).resolve().parent.parent / "data" / "filter_config.json"
+
+_DEFAULT_FILTER_CONFIG = {
+    "filters": [
+        {"table": "b_tblproceeding", "field": "BASE_CITY_CODE", "lookup": "base_city", "label": "Immigration Court", "enabled": True, "group": "Case"},
+        {"table": "a_tblcase", "field": "NAT", "lookup": "nationality", "label": "Nationality", "enabled": True, "group": "Case"},
+        {"table": "b_tblproceeding", "field": "CASE_TYPE", "lookup": "case_type", "label": "Case Type", "enabled": True, "group": "Case"},
+        {"table": "b_tblproceeding", "field": "IJ_CODE", "lookup": "judge", "label": "Immigration Judge", "enabled": True, "group": "Case"},
+        {"table": "b_tblproceeding", "field": "DEC_CODE", "lookup": "decision", "label": "Decision", "enabled": False, "group": "Case"},
+        {"table": "a_tblcase", "field": "CUSTODY", "lookup": "custody", "label": "Custody Status", "enabled": False, "group": "Case"},
+        {"table": "a_tblcase", "field": "LANG", "lookup": "language", "label": "Language", "enabled": False, "group": "Case"},
+        {"table": "a_tblcase", "field": "Sex", "lookup": None, "label": "Gender", "enabled": False, "group": "Case"},
+        {"table": "a_tblcase", "field": "LPR", "lookup": None, "label": "LPR Status", "enabled": False, "group": "Case"},
+        {"table": "b_tblproceeding", "field": "ABSENTIA", "lookup": None, "label": "In Absentia", "enabled": False, "group": "Proceeding"},
+        {"table": "b_tblproceeding", "field": "CRIM_IND", "lookup": None, "label": "Criminal Indicator", "enabled": False, "group": "Proceeding"},
+        {"table": "b_tblproceeding", "field": "IHP", "lookup": None, "label": "Institutional Hearing", "enabled": False, "group": "Proceeding"},
+        {"table": "b_tblproceeding", "field": "AGGRAVATE_FELON", "lookup": None, "label": "Aggravated Felon", "enabled": False, "group": "Proceeding"},
+        {"table": "tbl_court_appln", "field": "APPL_CODE", "lookup": "application", "label": "Application Type", "enabled": True, "group": "Application"},
+        {"table": "tbl_court_appln", "field": "APPL_DEC", "lookup": "court_app_dec", "label": "Application Decision", "enabled": True, "group": "Application"},
+        {"table": "b_tblproceedcharges", "field": "CHARGE", "lookup": "charge", "label": "Charge", "enabled": False, "group": "Charge"},
+        {"table": "tbl_schedule", "field": "CAL_TYPE", "lookup": "cal_type", "label": "Calendar Type", "enabled": False, "group": "Hearing"},
+        {"table": "tbl_schedule", "field": "ADJ_RSN", "lookup": "adjournment", "label": "Adjournment Reason", "enabled": False, "group": "Hearing"},
+        {"table": "tbl_schedule", "field": "SCHEDULE_TYPE", "lookup": "schedule_type", "label": "Schedule Type", "enabled": False, "group": "Hearing"},
+        {"table": "tbl_court_motions", "field": "STRFILINGPARTY", "lookup": "filed_by", "label": "Motion Filed By", "enabled": False, "group": "Motion"},
+    ]
+}
+
+_FILTER_GROUPS_ORDER = ["Case", "Proceeding", "Application", "Charge", "Hearing", "Motion"]
+
+
+def _load_filter_config() -> dict:
+    """Load filter config from JSON, creating defaults if missing."""
+    if FILTER_CONFIG_PATH.exists():
+        try:
+            with open(FILTER_CONFIG_PATH) as f:
+                return json.load(f)
+        except (json.JSONDecodeError, KeyError):
+            pass
+    # Write defaults
+    FILTER_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(FILTER_CONFIG_PATH, "w") as f:
+        json.dump(_DEFAULT_FILTER_CONFIG, f, indent=2)
+    return _DEFAULT_FILTER_CONFIG.copy()
+
+
+def _save_filter_config(config: dict):
+    """Persist filter config to JSON."""
+    FILTER_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(FILTER_CONFIG_PATH, "w") as f:
+        json.dump(config, f, indent=2)
+
+
+def _get_filter_options(filt: dict) -> list[str]:
+    """Get selectable options for a filter field."""
+    lookup_key = filt.get("lookup")
+    if lookup_key and lookup_key in LOOKUPS:
+        lookup = LOOKUPS[lookup_key]
+        # Special case: exclude placeholder entries
+        if lookup_key == "judge":
+            lookup = {k: v for k, v in lookup.items() if v != "<All Judges>"}
+        return sorted(lookup.keys(), key=lambda x: lookup.get(x, x))
+    # No lookup table — query distinct values directly
+    df = run_query(
+        f'SELECT DISTINCT "{filt["field"]}" FROM "{filt["table"]}" '
+        f'WHERE "{filt["field"]}" IS NOT NULL LIMIT 200'
+    )
+    if not df.empty:
+        return sorted(str(v) for v in df.iloc[:, 0].dropna().unique() if v)
+    return []
+
+
+def _get_format_func(filt: dict):
+    """Return a format_func for multiselect display."""
+    lookup_key = filt.get("lookup")
+    if lookup_key and lookup_key in LOOKUPS:
+        lookup = LOOKUPS[lookup_key]
+        return lambda x, lk=lookup: lk.get(x, x)
+    return lambda x: x
+
+
+# Table alias mapping for the dynamic WHERE builder
+_TABLE_ALIAS_MAP = {
+    "b_tblproceeding": None,  # uses the base proc alias
+    "a_tblcase": "c",
+    "tbl_court_appln": "ap",
+    "b_tblproceedcharges": "ch",
+    "tbl_schedule": None,     # uses the base sched alias
+    "tbl_court_motions": None, # uses the base motion alias
+}
 
 
 # ---------------------------------------------------------------------------
@@ -511,13 +651,25 @@ st.sidebar.markdown("""
 
 st.sidebar.divider()
 
-# Date type selector — FIRST filter in sidebar
-date_type = st.sidebar.selectbox(
-    "Date Type",
-    options=["Completion Date", "Filing Date", "Hearing Date"],
-    index=0,
-    help="Which date to filter by across the dashboard",
-)
+# Load filter config
+_filter_config = _load_filter_config()
+
+# ── Date & Time group ──
+with st.sidebar.expander("Date & Time", expanded=True):
+    date_type = st.selectbox(
+        "Date Type",
+        options=["Completion Date", "Filing Date", "Hearing Date"],
+        index=0,
+        help="Which date to filter by across the dashboard",
+        key="date_type_select",
+    )
+
+    st.markdown("**Date Range**")
+    d1, d2 = st.columns(2)
+    with d1:
+        date_from = st.date_input("From", value=date(2020, 1, 1), label_visibility="collapsed")
+    with d2:
+        date_to = st.date_input("To", value=date.today(), label_visibility="collapsed")
 
 # Map date_type to the correct column per table
 _DATE_COL_MAP = {
@@ -529,71 +681,89 @@ _active_date_cols = _DATE_COL_MAP[date_type]
 _proc_date = _active_date_cols["proc"]   # shorthand for proc queries
 _sched_date = _active_date_cols["sched"]  # shorthand for schedule queries
 
-st.sidebar.markdown("")
-
-# Date range
-st.sidebar.markdown("**Date Range**")
-d1, d2 = st.sidebar.columns(2)
-with d1:
-    date_from = st.date_input("From", value=date(2020, 1, 1), label_visibility="collapsed")
-with d2:
-    date_to = st.date_input("To", value=date.today(), label_visibility="collapsed")
-
 date_from_str = date_from.strftime("%Y-%m-%d")
 date_to_str = date_to.strftime("%Y-%m-%d")
 
+# ── Collect active filter selections ──
+# Each entry: {table, field, lookup, label, values}
+_active_filters: list[dict] = []
+
+# ── Clear All Filters button ──
+if st.sidebar.button("Clear All Filters", key="clear_all_filters", use_container_width=True):
+    # Clear all filter session state keys
+    for filt in _filter_config["filters"]:
+        ss_key = f"filt_{filt['table']}_{filt['field']}"
+        if ss_key in st.session_state:
+            st.session_state[ss_key] = []
+    st.rerun()
+
+# ── Render filter groups ──
+for group_name in _FILTER_GROUPS_ORDER:
+    group_filters = [f for f in _filter_config["filters"]
+                     if f["group"] == group_name and f["enabled"]]
+    if not group_filters:
+        # Show collapsed empty group
+        with st.sidebar.expander(f"{group_name} Filters (0 active)", expanded=False):
+            st.caption("No filters enabled. Use Configure Filters below.")
+        continue
+
+    # Count how many have selections from session state (pre-render)
+    pre_active = 0
+    for filt in group_filters:
+        ss_key = f"filt_{filt['table']}_{filt['field']}"
+        if st.session_state.get(ss_key):
+            pre_active += 1
+
+    label = f"{group_name} Filters ({pre_active} active)" if pre_active else f"{group_name} Filters"
+    expanded = pre_active > 0 or group_name == "Case"
+
+    with st.sidebar.expander(label, expanded=expanded):
+        for filt in group_filters:
+            ss_key = f"filt_{filt['table']}_{filt['field']}"
+            options = _get_filter_options(filt)
+            fmt_func = _get_format_func(filt)
+            selected = st.multiselect(
+                filt["label"],
+                options=options,
+                format_func=fmt_func,
+                placeholder=f"All",
+                key=ss_key,
+            )
+            _active_filters.append({
+                "table": filt["table"],
+                "field": filt["field"],
+                "lookup": filt.get("lookup"),
+                "label": filt["label"],
+                "group": filt["group"],
+                "values": selected,
+            })
+
+# ── Configure Filters (admin panel) ──
+with st.sidebar.expander("Configure Filters", expanded=False):
+    st.caption("Toggle which filters appear in the sidebar")
+    _config_changed = False
+    for group_name in _FILTER_GROUPS_ORDER:
+        st.markdown(f"**{group_name}**")
+        group_filters = [f for f in _filter_config["filters"] if f["group"] == group_name]
+        for filt in group_filters:
+            cfg_key = f"cfg_{filt['table']}_{filt['field']}"
+            new_val = st.checkbox(filt["label"], value=filt["enabled"], key=cfg_key)
+            if new_val != filt["enabled"]:
+                filt["enabled"] = new_val
+                _config_changed = True
+    if _config_changed:
+        _save_filter_config(_filter_config)
+        st.rerun()
+
 st.sidebar.divider()
 
-# Court filter — uses pre-loaded lookups
-_court_lookup = LOOKUPS.get("base_city", {})
-selected_courts = st.sidebar.multiselect(
-    "Immigration Court",
-    options=sorted(_court_lookup.keys(), key=lambda x: _court_lookup.get(x, x)),
-    format_func=lambda x: _court_lookup.get(x, x),
-    placeholder="All Courts",
-)
-
-# Nationality filter
-_nat_lookup = LOOKUPS.get("nationality", {})
-selected_nats = st.sidebar.multiselect(
-    "Nationality",
-    options=sorted(_nat_lookup.keys(), key=lambda x: _nat_lookup.get(x, x)),
-    format_func=lambda x: _nat_lookup.get(x, x),
-    placeholder="All Nationalities",
-)
-
-# Case type filter
-_ct_lookup = LOOKUPS.get("case_type", {})
-selected_case_types = st.sidebar.multiselect(
-    "Case Type",
-    options=sorted(_ct_lookup.keys(), key=lambda x: _ct_lookup.get(x, x)),
-    format_func=lambda x: _ct_lookup.get(x, x),
-    placeholder="All Types",
-)
-
-# Judge filter
-_judge_lookup = {k: v for k, v in LOOKUPS.get("judge", {}).items() if v != "<All Judges>"}
-selected_judges = st.sidebar.multiselect(
-    "Immigration Judge",
-    options=sorted(_judge_lookup.keys(), key=lambda x: _judge_lookup.get(x, x)),
-    format_func=lambda x: _judge_lookup.get(x, x),
-    placeholder="All Judges",
-)
-
-# Custody status filter
-_custody_lookup = LOOKUPS.get("custody", {})
-selected_custody = st.sidebar.multiselect(
-    "Custody Status",
-    options=sorted(_custody_lookup.keys(), key=lambda x: _custody_lookup.get(x, x)),
-    format_func=lambda x: _custody_lookup.get(x, x),
-    placeholder="All Statuses",
-)
-
-st.sidebar.divider()
+# ── Active filter count ──
+_total_active_selections = sum(1 for af in _active_filters if af.get("values"))
 st.sidebar.markdown(
     '<div style="text-align:center; font-size:0.65rem; color:#475569; padding:8px 0;">'
     f'Filtering by: {date_type}<br>'
-    f'Data period: {date_from_str} to {date_to_str}<br>'
+    f'Date range: {date_from_str} to {date_to_str}<br>'
+    f'Active filters: {_total_active_selections}<br>'
     '160M+ records &middot; 89 tables &middot; DuckDB'
     '</div>',
     unsafe_allow_html=True,
@@ -601,74 +771,118 @@ st.sidebar.markdown(
 
 
 # ---------------------------------------------------------------------------
-# WHERE clause builder (preserved from original — correct cross-table logic)
+# Dynamic WHERE clause + FROM builder
 # ---------------------------------------------------------------------------
 
 def build_where(
-    proc_alias: str = "p",
+    base_alias: str = "p",
     date_col: str | None = None,
-    case_alias: str | None = None,
     table_type: str = "proc",
-) -> tuple[str, bool]:
-    """Build SQL WHERE clause from sidebar filters.
+) -> tuple[str, set[str]]:
+    """Build SQL WHERE clause from all active dynamic filter selections.
 
-    table_type: "proc" | "sched" | "motion" — selects the right date column
-    for the active date_type. Override with explicit date_col if needed.
-
-    Returns (where_clause, needs_case_join).
+    table_type: "proc" | "sched" | "motion" — selects the right date column.
+    Returns (where_clause, needs_tables) where needs_tables is a set of
+    extra table names that must be JOINed.
     """
     conditions: list[str] = []
-    needs_case_join = False
+    needs_tables: set[str] = set()
 
-    # Resolve date column: explicit override > date type mapping
+    # Resolve date column
     if date_col is None:
         date_col = _active_date_cols.get(table_type, "COMP_DATE")
 
     conditions.append(
-        f'TRY_CAST({proc_alias}."{date_col}" AS TIMESTAMP) >= \'{date_from_str}\''
+        f'TRY_CAST({base_alias}."{date_col}" AS TIMESTAMP) >= \'{date_from_str}\''
     )
     conditions.append(
-        f'TRY_CAST({proc_alias}."{date_col}" AS TIMESTAMP) <= \'{date_to_str}\''
+        f'TRY_CAST({base_alias}."{date_col}" AS TIMESTAMP) <= \'{date_to_str}\''
     )
-    conditions.append(f'{proc_alias}."{date_col}" IS NOT NULL')
+    conditions.append(f'{base_alias}."{date_col}" IS NOT NULL')
 
-    if selected_courts:
-        quoted = ", ".join(f"'{c}'" for c in selected_courts)
-        conditions.append(f'{proc_alias}."BASE_CITY_CODE" IN ({quoted})')
-    if selected_case_types:
-        quoted = ", ".join(f"'{t}'" for t in selected_case_types)
-        conditions.append(f'{proc_alias}."CASE_TYPE" IN ({quoted})')
-    if selected_judges:
-        quoted = ", ".join(f"'{j}'" for j in selected_judges)
-        conditions.append(f'{proc_alias}."IJ_CODE" IN ({quoted})')
+    # Dynamic filters from sidebar selections
+    for filt in _active_filters:
+        if not filt["values"]:
+            continue
+        table = filt["table"]
+        field = filt["field"]
+        values = filt["values"]
 
-    if selected_nats:
-        needs_case_join = True
-        ca = case_alias or "c"
-        quoted = ", ".join(f"'{n}'" for n in selected_nats)
-        conditions.append(f'{ca}."NAT" IN ({quoted})')
+        # Determine alias based on table
+        if table == "a_tblcase":
+            needs_tables.add("a_tblcase")
+            alias = "c"
+        elif table == "tbl_court_appln":
+            needs_tables.add("tbl_court_appln")
+            alias = "ap"
+        elif table == "b_tblproceedcharges":
+            needs_tables.add("b_tblproceedcharges")
+            alias = "ch"
+        elif table == "tbl_schedule":
+            needs_tables.add("tbl_schedule")
+            alias = "s"
+        elif table == "tbl_court_motions":
+            needs_tables.add("tbl_court_motions")
+            alias = "m"
+        else:
+            # b_tblproceeding — uses base alias
+            alias = base_alias
 
-    if selected_custody:
-        needs_case_join = True
-        ca = case_alias or "c"
-        quoted = ", ".join(f"'{s}'" for s in selected_custody)
-        conditions.append(f'{ca}."CUSTODY" IN ({quoted})')
+        quoted = ", ".join(f"'{v}'" for v in values)
+        conditions.append(f'{alias}."{field}" IN ({quoted})')
 
-    return " AND ".join(conditions), needs_case_join
+    return " AND ".join(conditions), needs_tables
 
 
-def _proc_from(proc_alias: str = "p", case_alias: str = "c", needs_case_join: bool = False) -> str:
-    base = f"b_tblproceeding {proc_alias}"
-    if needs_case_join:
-        base += f"\n        JOIN a_tblcase {case_alias} ON TRY_CAST({proc_alias}.IDNCASE AS BIGINT) = {case_alias}.IDNCASE"
-    return base
+def build_from(
+    base_table: str,
+    base_alias: str,
+    needs_tables: set[str],
+) -> str:
+    """Build FROM clause with necessary JOINs for the active filters."""
+    sql = f"{base_table} {base_alias}"
+    if "a_tblcase" in needs_tables:
+        sql += (
+            f"\n        JOIN a_tblcase c"
+            f" ON TRY_CAST({base_alias}.IDNCASE AS BIGINT) = c.IDNCASE"
+        )
+    if "tbl_court_appln" in needs_tables:
+        sql += (
+            f"\n        JOIN tbl_court_appln ap"
+            f" ON {base_alias}.IDNPROCEEDING = ap.IDNPROCEEDING"
+            f" AND {base_alias}.IDNCASE = ap.IDNCASE"
+        )
+    if "b_tblproceedcharges" in needs_tables:
+        sql += (
+            f"\n        JOIN b_tblproceedcharges ch"
+            f" ON {base_alias}.IDNPROCEEDING = ch.IDNPROCEEDING"
+            f" AND {base_alias}.IDNCASE = ch.IDNCASE"
+        )
+    if "tbl_schedule" in needs_tables and base_table != "tbl_schedule":
+        sql += (
+            f"\n        JOIN tbl_schedule s"
+            f" ON {base_alias}.IDNPROCEEDING = s.IDNPROCEEDING"
+            f" AND {base_alias}.IDNCASE = s.IDNCASE"
+        )
+    if "tbl_court_motions" in needs_tables and base_table != "tbl_court_motions":
+        sql += (
+            f"\n        JOIN tbl_court_motions m"
+            f" ON {base_alias}.IDNPROCEEDING = m.IDNPROCEEDING"
+            f" AND {base_alias}.IDNCASE = m.IDNCASE"
+        )
+    return sql
 
 
-def _sched_from(sched_alias: str = "s", case_alias: str = "c", needs_case_join: bool = False) -> str:
-    base = f"tbl_schedule {sched_alias}"
-    if needs_case_join:
-        base += f"\n        JOIN a_tblcase {case_alias} ON TRY_CAST({sched_alias}.IDNCASE AS BIGINT) = {case_alias}.IDNCASE"
-    return base
+def _proc_from(base_alias: str = "p", case_alias: str = "c", needs_tables: set[str] | None = None) -> str:
+    """Convenience: build FROM for b_tblproceeding queries."""
+    tables = needs_tables or set()
+    return build_from("b_tblproceeding", base_alias, tables)
+
+
+def _sched_from(base_alias: str = "s", case_alias: str = "c", needs_tables: set[str] | None = None) -> str:
+    """Convenience: build FROM for tbl_schedule queries."""
+    tables = needs_tables or set()
+    return build_from("tbl_schedule", base_alias, tables)
 
 
 # ---------------------------------------------------------------------------
@@ -700,8 +914,8 @@ tab_exec, tab_outcomes, tab_courts, tab_judges, tab_explore, tab_ai = st.tabs([
 
 # ===== TAB 1: Executive Summary =============================================
 with tab_exec:
-    where, needs_join = build_where("p", case_alias="c", table_type="proc")
-    from_clause = _proc_from("p", "c", needs_join)
+    where, needs_tables = build_where("p", table_type="proc")
+    from_clause = _proc_from("p", "c", needs_tables)
 
     # --- KPI row ---
     kpi_sql = f"""
@@ -769,8 +983,9 @@ with tab_exec:
     col_left, col_right = st.columns(2)
 
     # Always need case join for nationality
-    where_nat, _ = build_where("p", case_alias="c", table_type="proc")
-    from_nat = _proc_from("p", "c", needs_case_join=True)
+    where_nat, needs_tables_nat = build_where("p", table_type="proc")
+    needs_tables_nat.add("a_tblcase")
+    from_nat = _proc_from("p", "c", needs_tables_nat)
 
     with col_left:
         nat_sql = f"""
@@ -816,8 +1031,8 @@ with tab_exec:
 
 # ===== TAB 2: Case Outcomes ==================================================
 with tab_outcomes:
-    where, needs_join = build_where("p", case_alias="c", table_type="proc")
-    from_clause = _proc_from("p", "c", needs_join)
+    where, needs_tables = build_where("p", table_type="proc")
+    from_clause = _proc_from("p", "c", needs_tables)
 
     # --- Grant vs Denial rate over time ---
     gd_sql = f"""
@@ -946,8 +1161,9 @@ with tab_outcomes:
         )
 
     # --- Outcome by nationality heatmap ---
-    where_nat_out, _ = build_where("p", case_alias="c", table_type="proc")
-    from_nat_out = _proc_from("p", "c", needs_case_join=True)
+    where_nat_out, needs_tables_nat_out = build_where("p", table_type="proc")
+    needs_tables_nat_out.add("a_tblcase")
+    from_nat_out = _proc_from("p", "c", needs_tables_nat_out)
 
     heat_sql = f"""
         WITH top_nats AS (
@@ -1002,8 +1218,8 @@ with tab_outcomes:
 
 # ===== TAB 3: Court Performance ==============================================
 with tab_courts:
-    where, needs_join = build_where("p", case_alias="c", table_type="proc")
-    from_clause = _proc_from("p", "c", needs_join)
+    where, needs_tables = build_where("p", table_type="proc")
+    from_clause = _proc_from("p", "c", needs_tables)
 
     # --- Court comparison table ---
     court_sql = f"""
@@ -1130,8 +1346,8 @@ with tab_courts:
 
 # ===== TAB 4: Judge Analytics ================================================
 with tab_judges:
-    where, needs_join = build_where("p", case_alias="c", table_type="proc")
-    from_clause = _proc_from("p", "c", needs_join)
+    where, needs_tables = build_where("p", table_type="proc")
+    from_clause = _proc_from("p", "c", needs_tables)
 
     # --- Judge scorecard ---
     judge_sql = f"""
