@@ -1800,6 +1800,16 @@ st.markdown(f"""
         <span class="app-header-title">EOIR Analytics</span>
         <span class="app-header-badge">160M+ records</span>
     </div>
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <a href="http://localhost:8502" target="_blank"
+           style="font-size: 0.8rem; color: #64748B; text-decoration: none;
+                  padding: 4px 12px; border: 1px solid #E2E8F0; border-radius: 8px;
+                  transition: all 0.15s;"
+           onmouseover="this.style.borderColor='#3B82F6'; this.style.color='#3B82F6';"
+           onmouseout="this.style.borderColor='#E2E8F0'; this.style.color='#64748B';">
+            ← Staff Dashboard
+        </a>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
