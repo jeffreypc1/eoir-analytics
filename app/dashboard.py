@@ -2,6 +2,8 @@
 
 Port 8519. Investor-grade data visualization platform over 160M+ rows
 of EOIR immigration court data in DuckDB.
+
+New UX: sidebar table/field navigator with popout filters in main area.
 """
 
 from __future__ import annotations
@@ -10,7 +12,7 @@ import json
 import os
 import re
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import duckdb
@@ -291,37 +293,7 @@ button[data-baseweb="tab"][aria-selected="true"] {{
     overflow: hidden;
 }}
 
-/* -- Sidebar filter group expanders -- */
-section[data-testid="stSidebar"] .streamlit-expanderHeader {{
-    background: rgba(255,255,255,0.04) !important;
-    border: 1px solid rgba(255,255,255,0.06) !important;
-    border-radius: 10px !important;
-    padding: 8px 14px !important;
-    font-size: 0.82rem !important;
-    font-weight: 600 !important;
-    color: #E2E8F0 !important;
-    transition: background 0.15s ease !important;
-}}
-section[data-testid="stSidebar"] .streamlit-expanderHeader:hover {{
-    background: rgba(255,255,255,0.08) !important;
-}}
-section[data-testid="stSidebar"] .streamlit-expanderContent {{
-    border: 1px solid rgba(255,255,255,0.04) !important;
-    border-top: none !important;
-    border-radius: 0 0 10px 10px !important;
-    padding: 8px 10px 4px 10px !important;
-    background: rgba(0,0,0,0.12) !important;
-}}
-section[data-testid="stSidebar"] .filter-badge {{
-    display: inline-block;
-    background: rgba(59,130,246,0.2);
-    color: {ACCENT_BLUE};
-    padding: 1px 8px;
-    border-radius: 12px;
-    font-size: 0.7rem;
-    font-weight: 700;
-    margin-left: 6px;
-}}
+/* -- Sidebar filter/field buttons -- */
 section[data-testid="stSidebar"] .stButton > button {{
     background: rgba(255,255,255,0.06) !important;
     border: 1px solid rgba(255,255,255,0.1) !important;
@@ -343,117 +315,102 @@ section[data-testid="stSidebar"] .stButton > button:hover {{
     max-width: 100% !important;
 }}
 
-/* -- Data Model tab: table cards -- */
-.dm-card {{
-    background: {CARD_BG};
-    border: 2px solid #E2E8F0;
-    border-radius: 16px;
-    padding: 20px;
-    margin-bottom: 12px;
-    transition: all 0.3s ease;
+/* -- Filter popout card -- */
+.filter-popout {{
     position: relative;
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+    border: 1px solid #E2E8F0;
+    animation: slideDown 0.2s ease;
 }}
-.dm-card.active {{
-    border-color: {ACCENT_BLUE};
-    box-shadow: 0 0 20px rgba(59,130,246,0.15), 0 0 40px rgba(59,130,246,0.05);
-    background: linear-gradient(135deg, #F0F7FF 0%, {CARD_BG} 100%);
-}}
-.dm-card .dm-title {{
-    font-size: 1rem;
-    font-weight: 700;
-    color: {TEXT_PRIMARY};
-    margin: 0 0 4px 0;
-}}
-.dm-card .dm-table-name {{
-    font-family: 'SF Mono', 'Fira Code', monospace;
-    font-size: 0.7rem;
-    color: {TEXT_SECONDARY};
-    margin: 0 0 6px 0;
-}}
-.dm-card .dm-desc {{
-    font-size: 0.8rem;
-    color: {TEXT_SECONDARY};
-    margin: 0 0 8px 0;
-    line-height: 1.4;
-}}
-.dm-card .dm-badge {{
-    display: inline-block;
-    padding: 2px 10px;
-    border-radius: 12px;
-    font-size: 0.68rem;
-    font-weight: 600;
-    margin-right: 6px;
-}}
-.dm-badge-rows {{
-    background: rgba(99,102,241,0.1);
-    color: #6366F1;
-}}
-.dm-badge-fields {{
-    background: rgba(16,185,129,0.1);
-    color: {ACCENT_GREEN};
+@keyframes slideDown {{
+    from {{ opacity: 0; transform: translateY(-8px); }}
+    to {{ opacity: 1; transform: translateY(0); }}
 }}
 
-/* -- Field list in Data Model -- */
-.field-row {{
+/* -- Active filter pills -- */
+.filter-pills {{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 0;
+    align-items: center;
+}}
+.filter-pill {{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #EFF6FF;
+    border: 1px solid #BFDBFE;
+    color: #1E40AF;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}}
+.filter-pill-remove {{
+    cursor: pointer;
+    opacity: 0.7;
+    font-size: 0.9rem;
+}}
+.filter-pill-remove:hover {{ opacity: 1; }}
+.filter-pills-label {{
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: {TEXT_SECONDARY};
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-right: 4px;
+}}
+
+/* -- Sidebar table & field tree styling -- */
+.sidebar-section-label {{
+    font-size: 0.68rem;
+    color: #94A3B8;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin: 12px 0 8px 0;
+}}
+.sidebar-table-row {{
     display: flex;
     align-items: center;
-    padding: 6px 0;
-    border-bottom: 1px solid #F1F5F9;
-    font-size: 0.82rem;
+    justify-content: space-between;
+    padding: 2px 0;
 }}
-.field-row:last-child {{
-    border-bottom: none;
-}}
-.field-name {{
+.sidebar-table-label {{
+    font-size: 0.85rem;
     font-weight: 600;
-    color: {TEXT_PRIMARY};
-    min-width: 140px;
+    color: #E2E8F0;
 }}
-.field-col {{
-    font-family: 'SF Mono', 'Fira Code', monospace;
+.sidebar-table-count {{
+    font-size: 0.68rem;
+    color: #64748B;
+    font-weight: 500;
+}}
+.sidebar-field-row {{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1px 0 1px 16px;
+    font-size: 0.78rem;
+    color: #94A3B8;
+}}
+.sidebar-field-name {{
+    font-weight: 400;
+}}
+.sidebar-field-icon {{
     font-size: 0.72rem;
-    color: {TEXT_SECONDARY};
-    min-width: 160px;
-}}
-.field-badge {{
-    display: inline-block;
-    padding: 1px 8px;
-    border-radius: 10px;
-    font-size: 0.65rem;
-    font-weight: 600;
-    margin-left: 6px;
-}}
-.badge-lookup {{
-    background: rgba(59,130,246,0.12);
-    color: {ACCENT_BLUE};
-}}
-.badge-date {{
-    background: rgba(245,158,11,0.12);
-    color: {ACCENT_AMBER};
-}}
-.badge-number {{
-    background: rgba(99,102,241,0.1);
-    color: #6366F1;
-}}
-.badge-text {{
-    background: rgba(100,116,139,0.1);
-    color: {TEXT_SECONDARY};
-}}
-.badge-boolean {{
-    background: rgba(16,185,129,0.1);
-    color: {ACCENT_GREEN};
+    opacity: 0.7;
 }}
 
-/* -- Sidebar active table pills -- */
-.table-pill {{
-    display: inline-block;
-    background: rgba(59,130,246,0.15);
-    color: {ACCENT_BLUE};
-    padding: 3px 10px;
-    border-radius: 12px;
-    font-size: 0.72rem;
-    font-weight: 600;
-    margin: 2px 3px;
+/* -- Admin mode hidden field strikethrough -- */
+.field-hidden {{
+    text-decoration: line-through;
+    opacity: 0.4;
 }}
 </style>
 """, unsafe_allow_html=True)
@@ -583,6 +540,31 @@ def get_table_columns(table_name: str) -> list[dict]:
         return []
 
 
+@st.cache_data(ttl=600)
+def get_field_value_counts(table_name: str, field_name: str, lookup_key: str | None = None) -> list[tuple[str, str, int]]:
+    """Get (code, display_name, count) for a field, ordered by count desc. Max 500."""
+    con = get_db()
+    if con is None:
+        return []
+    try:
+        rows = con.execute(
+            f'SELECT "{field_name}", COUNT(*) as cnt '
+            f'FROM "{table_name}" '
+            f'WHERE "{field_name}" IS NOT NULL '
+            f'GROUP BY "{field_name}" '
+            f'ORDER BY cnt DESC LIMIT 500'
+        ).fetchall()
+        lookup = LOOKUPS.get(lookup_key, {}) if lookup_key else {}
+        result = []
+        for r in rows:
+            code = str(r[0]).strip()
+            display = lookup.get(code, code) if lookup else code
+            result.append((code, display, r[1]))
+        return result
+    except Exception:
+        return []
+
+
 # ---------------------------------------------------------------------------
 # Data Model Configuration
 # ---------------------------------------------------------------------------
@@ -699,12 +681,12 @@ FIELD_META = {
         "CRIM_IND": {"label": "Criminal Indicator", "type": "boolean", "filter_candidate": True},
         "IHP": {"label": "Institutional Hearing", "type": "boolean", "filter_candidate": True},
         "AGGRAVATE_FELON": {"label": "Aggravated Felon", "type": "boolean", "filter_candidate": True},
-        "COMP_DATE": {"label": "Completion Date", "type": "date", "filter_candidate": False},
-        "OSC_DATE": {"label": "Filing Date (OSC)", "type": "date", "filter_candidate": False},
-        "HEARING_DATE": {"label": "Last Hearing Date", "type": "date", "filter_candidate": False},
+        "COMP_DATE": {"label": "Completion Date", "type": "date", "filter_candidate": True},
+        "OSC_DATE": {"label": "Filing Date (OSC)", "type": "date", "filter_candidate": True},
+        "HEARING_DATE": {"label": "Last Hearing Date", "type": "date", "filter_candidate": True},
     },
     "tbl_schedule": {
-        "ADJ_DATE": {"label": "Hearing Date", "type": "date", "filter_candidate": False},
+        "ADJ_DATE": {"label": "Hearing Date", "type": "date", "filter_candidate": True},
         "ADJ_RSN": {"label": "Adjournment Reason", "type": "lookup", "lookup": "adjournment",
                     "lookup_table": "tbladjournmentcodes", "code_col": "strcode", "desc_col": "strDesciption",
                     "filter_candidate": True},
@@ -801,11 +783,7 @@ TABLE_JOINS = {
 # Default configuration
 _DEFAULT_CONFIG = {
     "active_tables": ["a_tblcase", "b_tblproceeding"],
-    "active_filters": {
-        "a_tblcase": ["NAT"],
-        "b_tblproceeding": ["BASE_CITY_CODE", "IJ_CODE"],
-    },
-    "date_type": "Completion Date",
+    "hidden_fields": {},
 }
 
 
@@ -815,8 +793,10 @@ def _load_config() -> dict:
         try:
             with open(CONFIG_PATH) as f:
                 cfg = json.load(f)
-                # Ensure required keys exist
-                if "active_tables" in cfg and "active_filters" in cfg:
+                if "active_tables" in cfg:
+                    # Migrate from old format if needed
+                    if "hidden_fields" not in cfg:
+                        cfg["hidden_fields"] = {}
                     return cfg
         except (json.JSONDecodeError, KeyError):
             pass
@@ -834,54 +814,33 @@ def _save_config(config: dict):
         json.dump(config, f, indent=2)
 
 
-# Initialize config in session state
-if "dm_config" not in st.session_state:
-    st.session_state.dm_config = _load_config()
-
-
-def _get_active_tables() -> list[str]:
-    return st.session_state.dm_config.get("active_tables", _DEFAULT_CONFIG["active_tables"])
-
-
-def _get_active_filters() -> dict[str, list[str]]:
-    return st.session_state.dm_config.get("active_filters", _DEFAULT_CONFIG["active_filters"])
-
-
-def _is_table_active(table_name: str) -> bool:
-    return table_name in _get_active_tables()
-
-
 # ---------------------------------------------------------------------------
-# Helpers — filter options
+# Session state initialization
 # ---------------------------------------------------------------------------
 
-def _get_filter_options_for_field(table: str, field: str) -> list[str]:
-    """Get selectable options for a filter field."""
-    meta = FIELD_META.get(table, {}).get(field, {})
-    lookup_key = meta.get("lookup")
-    if lookup_key and lookup_key in LOOKUPS:
-        lookup = LOOKUPS[lookup_key]
-        if lookup_key == "judge":
-            lookup = {k: v for k, v in lookup.items() if v != "<All Judges>"}
-        return sorted(lookup.keys(), key=lambda x: lookup.get(x, x))
-    # No lookup table — query distinct values directly
-    df = run_query(
-        f'SELECT DISTINCT "{field}" FROM "{table}" '
-        f'WHERE "{field}" IS NOT NULL LIMIT 200'
-    )
-    if not df.empty:
-        return sorted(str(v) for v in df.iloc[:, 0].dropna().unique() if v)
-    return []
+if "dashboard_config" not in st.session_state:
+    st.session_state.dashboard_config = _load_config()
+
+if "active_tables" not in st.session_state:
+    st.session_state.active_tables = list(st.session_state.dashboard_config.get(
+        "active_tables", _DEFAULT_CONFIG["active_tables"]))
+
+if "active_popout" not in st.session_state:
+    st.session_state.active_popout = None  # e.g. "a_tblcase.NAT"
+
+if "filters" not in st.session_state:
+    st.session_state.filters = {}  # e.g. {"a_tblcase.NAT": ["MX","GT"], "b_tblproceeding.COMP_DATE": {"from":"2020-01-01","to":"2026-03-18"}}
+
+if "admin_mode" not in st.session_state:
+    st.session_state.admin_mode = False
 
 
-def _get_format_func_for_field(table: str, field: str):
-    """Return a format_func for multiselect display."""
-    meta = FIELD_META.get(table, {}).get(field, {})
-    lookup_key = meta.get("lookup")
-    if lookup_key and lookup_key in LOOKUPS:
-        lookup = LOOKUPS[lookup_key]
-        return lambda x, lk=lookup: lk.get(x, x)
-    return lambda x: x
+def _get_hidden_fields(table_name: str) -> list[str]:
+    return st.session_state.dashboard_config.get("hidden_fields", {}).get(table_name, [])
+
+
+def _is_field_hidden(table_name: str, field_name: str) -> bool:
+    return field_name in _get_hidden_fields(table_name)
 
 
 # ---------------------------------------------------------------------------
@@ -977,9 +936,13 @@ def card_close():
 def _table_required_message(table_label: str) -> None:
     """Show a message when a required table is not active."""
     st.info(
-        f"Enable the **{table_label}** table in the Data Model tab to see this analysis.",
+        f"Enable the **{table_label}** table in the sidebar to see this analysis.",
         icon="\u2139\ufe0f",
     )
+
+
+def _is_table_active(table_name: str) -> bool:
+    return table_name in st.session_state.active_tables
 
 
 # ---------------------------------------------------------------------------
@@ -992,7 +955,7 @@ if con is None:
 
 
 # ---------------------------------------------------------------------------
-# Sidebar — premium filter controls
+# Sidebar — Table & Field Navigator
 # ---------------------------------------------------------------------------
 
 st.sidebar.markdown("""
@@ -1008,111 +971,128 @@ st.sidebar.markdown("""
 
 st.sidebar.divider()
 
-# Show active table pills
-active_tables = _get_active_tables()
-active_filters_config = _get_active_filters()
+st.sidebar.markdown('<div class="sidebar-section-label">DATA SOURCES</div>', unsafe_allow_html=True)
 
-pills_html = '<div style="text-align:center; margin-bottom: 8px;">'
-pills_html += f'<div style="font-size: 0.68rem; color: #94A3B8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px;">Active Tables: {len(active_tables)}</div>'
-for t in active_tables:
-    label = TABLE_META.get(t, {}).get("label", t)
-    pills_html += f'<span class="table-pill">{label}</span>'
-pills_html += '</div>'
-st.sidebar.markdown(pills_html, unsafe_allow_html=True)
+# Render each table with checkbox and fields
+_row_count_cache = {}
+for table_name, meta in TABLE_META.items():
+    if table_name not in _row_count_cache:
+        _row_count_cache[table_name] = get_table_row_count(table_name)
+    row_count = _row_count_cache[table_name]
 
-st.sidebar.divider()
+    is_active = table_name in st.session_state.active_tables
+    label_text = f"{meta['label']} -- {_fmt_number(row_count)} rows"
 
-# -- Date & Time group --
-with st.sidebar.expander("Date & Time", expanded=True):
-    date_type = st.selectbox(
-        "Date Type",
-        options=["Completion Date", "Filing Date", "Hearing Date"],
-        index=0,
-        help="Which date to filter by across the dashboard",
-        key="date_type_select",
+    new_active = st.sidebar.checkbox(
+        label_text,
+        value=is_active,
+        key=f"sb_table_{table_name}",
     )
 
-    st.markdown("**Date Range**")
-    d1, d2 = st.columns(2)
-    with d1:
-        date_from = st.date_input("From", value=date(2020, 1, 1), label_visibility="collapsed")
-    with d2:
-        date_to = st.date_input("To", value=date.today(), label_visibility="collapsed")
+    # Handle table toggle change
+    if new_active != is_active:
+        if new_active:
+            st.session_state.active_tables.append(table_name)
+        else:
+            st.session_state.active_tables.remove(table_name)
+            # Close any popout from this table
+            if st.session_state.active_popout and st.session_state.active_popout.startswith(f"{table_name}."):
+                st.session_state.active_popout = None
+            # Remove filters for this table
+            keys_to_remove = [k for k in st.session_state.filters if k.startswith(f"{table_name}.")]
+            for k in keys_to_remove:
+                del st.session_state.filters[k]
+        # Persist active tables to config
+        st.session_state.dashboard_config["active_tables"] = list(st.session_state.active_tables)
+        _save_config(st.session_state.dashboard_config)
+        st.rerun()
 
-# Map date_type to the correct column per table
-_DATE_COL_MAP = {
-    "Completion Date": {"proc": "COMP_DATE", "sched": "ADJ_DATE", "motion": "COMP_DATE"},
-    "Filing Date": {"proc": "OSC_DATE", "sched": "OSC_DATE", "motion": "OSC_DATE"},
-    "Hearing Date": {"proc": "HEARING_DATE", "sched": "ADJ_DATE", "motion": "COMP_DATE"},
-}
-_active_date_cols = _DATE_COL_MAP[date_type]
-_proc_date = _active_date_cols["proc"]
-_sched_date = _active_date_cols["sched"]
+    # Show fields if table is active
+    if new_active:
+        fields = FIELD_META.get(table_name, {})
+        hidden_fields = _get_hidden_fields(table_name)
 
-date_from_str = date_from.strftime("%Y-%m-%d")
-date_to_str = date_to.strftime("%Y-%m-%d")
+        for field_name, field_meta in fields.items():
+            # Skip hidden fields (unless admin mode)
+            if field_name in hidden_fields and not st.session_state.admin_mode:
+                continue
 
-# -- Collect active filter selections --
-_active_filter_selections: list[dict] = []
+            ftype = field_meta.get("type", "text")
+            label = field_meta.get("label", field_name)
+            is_filterable = field_meta.get("filter_candidate", False)
+            is_date = ftype == "date" and is_filterable
 
-# -- Clear All Filters button --
-if st.sidebar.button("Clear All Filters", key="clear_all_filters", use_container_width=True):
-    for table_name, fields in active_filters_config.items():
-        for field in fields:
-            ss_key = f"filt_{table_name}_{field}"
-            if ss_key in st.session_state:
-                st.session_state[ss_key] = []
-    st.rerun()
+            # Build the sidebar row
+            filter_key = f"{table_name}.{field_name}"
+            has_active_filter = filter_key in st.session_state.filters
 
-# -- Render filter groups by active table --
-for table_name in active_tables:
-    table_label = TABLE_META.get(table_name, {}).get("label", table_name)
-    enabled_fields = active_filters_config.get(table_name, [])
+            # Admin mode: show hide button
+            if st.session_state.admin_mode:
+                is_hidden = field_name in hidden_fields
+                admin_cols = st.sidebar.columns([5, 1])
+                with admin_cols[0]:
+                    if is_filterable or is_date:
+                        icon = "📅" if is_date else "🔍"
+                        btn_label = f"  {icon} {label}" + (" *" if has_active_filter else "")
+                        if is_hidden:
+                            btn_label = f"  ~{label}~ (hidden)"
+                        if st.button(btn_label, key=f"sb_field_{table_name}_{field_name}",
+                                     use_container_width=True):
+                            if not is_hidden:
+                                st.session_state.active_popout = filter_key
+                                st.rerun()
+                    else:
+                        display_label = f"  {label}" + (" (hidden)" if is_hidden else "")
+                        st.sidebar.markdown(
+                            f'<div class="sidebar-field-row{"  field-hidden" if is_hidden else ""}">'
+                            f'<span class="sidebar-field-name">{display_label}</span></div>',
+                            unsafe_allow_html=True)
+                with admin_cols[1]:
+                    if is_hidden:
+                        if st.button("+", key=f"sb_unhide_{table_name}_{field_name}"):
+                            hidden_fields.remove(field_name)
+                            st.session_state.dashboard_config.setdefault("hidden_fields", {})[table_name] = hidden_fields
+                            _save_config(st.session_state.dashboard_config)
+                            st.rerun()
+                    else:
+                        if st.button("x", key=f"sb_hide_{table_name}_{field_name}"):
+                            hidden_fields.append(field_name)
+                            st.session_state.dashboard_config.setdefault("hidden_fields", {})[table_name] = hidden_fields
+                            _save_config(st.session_state.dashboard_config)
+                            st.rerun()
+            else:
+                # Normal mode
+                if is_filterable or is_date:
+                    icon = "📅" if is_date else "🔍"
+                    btn_label = f"  {icon} {label}" + (" *" if has_active_filter else "")
+                    if st.sidebar.button(btn_label, key=f"sb_field_{table_name}_{field_name}",
+                                         use_container_width=True):
+                        # Toggle popout
+                        if st.session_state.active_popout == filter_key:
+                            st.session_state.active_popout = None
+                        else:
+                            st.session_state.active_popout = filter_key
+                        st.rerun()
+                else:
+                    st.sidebar.markdown(
+                        f'<div class="sidebar-field-row">'
+                        f'<span class="sidebar-field-name">  {label}</span></div>',
+                        unsafe_allow_html=True)
 
-    if not enabled_fields:
-        continue
-
-    # Count active selections
-    pre_active = 0
-    for field in enabled_fields:
-        ss_key = f"filt_{table_name}_{field}"
-        if st.session_state.get(ss_key):
-            pre_active += 1
-
-    exp_label = f"{table_label} Filters ({pre_active} active)" if pre_active else f"{table_label} Filters"
-    expanded = pre_active > 0 or table_name in ("a_tblcase", "b_tblproceeding")
-
-    with st.sidebar.expander(exp_label, expanded=expanded):
-        for field in enabled_fields:
-            meta = FIELD_META.get(table_name, {}).get(field, {})
-            label = meta.get("label", field)
-            ss_key = f"filt_{table_name}_{field}"
-            options = _get_filter_options_for_field(table_name, field)
-            fmt_func = _get_format_func_for_field(table_name, field)
-            selected = st.multiselect(
-                label,
-                options=options,
-                format_func=fmt_func,
-                placeholder="All",
-                key=ss_key,
-            )
-            _active_filter_selections.append({
-                "table": table_name,
-                "field": field,
-                "lookup": meta.get("lookup"),
-                "label": label,
-                "values": selected,
-            })
 
 st.sidebar.divider()
 
-# -- Active filter count --
-_total_active_selections = sum(1 for af in _active_filter_selections if af.get("values"))
+# -- Admin toggle at bottom of sidebar --
+admin_on = st.sidebar.toggle("Admin Mode", value=st.session_state.admin_mode, key="sb_admin_toggle")
+if admin_on != st.session_state.admin_mode:
+    st.session_state.admin_mode = admin_on
+    st.rerun()
+
+# -- Filter summary in sidebar --
+active_filter_count = len(st.session_state.filters)
 st.sidebar.markdown(
     '<div style="text-align:center; font-size:0.65rem; color:#475569; padding:8px 0;">'
-    f'Filtering by: {date_type}<br>'
-    f'Date range: {date_from_str} to {date_to_str}<br>'
-    f'Active filters: {_total_active_selections}<br>'
+    f'Active filters: {active_filter_count}<br>'
     '160M+ records &middot; 89 tables &middot; DuckDB'
     '</div>',
     unsafe_allow_html=True,
@@ -1123,12 +1103,20 @@ st.sidebar.markdown(
 # Dynamic WHERE clause + FROM builder
 # ---------------------------------------------------------------------------
 
+# Map date_type to the correct column per table
+_DATE_COL_MAP = {
+    "Completion Date": {"proc": "COMP_DATE", "sched": "ADJ_DATE", "motion": "COMP_DATE"},
+    "Filing Date": {"proc": "OSC_DATE", "sched": "OSC_DATE", "motion": "OSC_DATE"},
+    "Hearing Date": {"proc": "HEARING_DATE", "sched": "ADJ_DATE", "motion": "COMP_DATE"},
+}
+
+
 def build_where(
     base_alias: str = "p",
     date_col: str | None = None,
     table_type: str = "proc",
 ) -> tuple[str, set[str]]:
-    """Build SQL WHERE clause from all active dynamic filter selections.
+    """Build SQL WHERE clause from all active filter selections in session state.
 
     table_type: "proc" | "sched" | "motion" -- selects the right date column.
     Returns (where_clause, needs_tables) where needs_tables is a set of
@@ -1137,39 +1125,64 @@ def build_where(
     conditions: list[str] = []
     needs_tables: set[str] = set()
 
-    # Resolve date column
-    if date_col is None:
-        date_col = _active_date_cols.get(table_type, "COMP_DATE")
+    # Check if there's a date filter that should act as the main date constraint
+    # Find date filters from session state
+    date_constraints_applied = False
 
-    conditions.append(
-        f'TRY_CAST({base_alias}."{date_col}" AS TIMESTAMP) >= \'{date_from_str}\''
-    )
-    conditions.append(
-        f'TRY_CAST({base_alias}."{date_col}" AS TIMESTAMP) <= \'{date_to_str}\''
-    )
-    conditions.append(f'{base_alias}."{date_col}" IS NOT NULL')
+    for filter_key, filter_value in st.session_state.filters.items():
+        table_name, field_name = filter_key.split(".", 1)
+        field_meta = FIELD_META.get(table_name, {}).get(field_name, {})
 
-    # Dynamic filters from sidebar selections
-    for filt in _active_filter_selections:
-        if not filt["values"]:
-            continue
-        table = filt["table"]
-        field = filt["field"]
-        values = filt["values"]
+        if field_meta.get("type") == "date" and isinstance(filter_value, dict):
+            # Date range filter
+            alias_map = {t: m["alias"] for t, m in TABLE_META.items()}
+            if table_name == "b_tblproceeding":
+                alias = base_alias if table_type == "proc" else alias_map.get(table_name, base_alias)
+            elif table_name == "tbl_schedule":
+                alias = base_alias if table_type == "sched" else alias_map.get(table_name, base_alias)
+            else:
+                alias = alias_map.get(table_name, base_alias)
 
-        # Determine alias based on table
-        alias_map = {t: m["alias"] for t, m in TABLE_META.items()}
-        if table == "b_tblproceeding":
-            alias = base_alias
-        elif table in alias_map:
-            needs_tables.add(table)
-            alias = alias_map[table]
-        else:
-            alias = base_alias
+            # Only add join if the table isn't the base
+            base_table_map = {"proc": "b_tblproceeding", "sched": "tbl_schedule", "motion": "tbl_court_motions"}
+            if table_name != base_table_map.get(table_type):
+                needs_tables.add(table_name)
 
-        quoted = ", ".join(f"'{v}'" for v in values)
-        conditions.append(f'{alias}."{field}" IN ({quoted})')
+            date_from = filter_value.get("from", "2000-01-01")
+            date_to = filter_value.get("to", date.today().strftime("%Y-%m-%d"))
+            conditions.append(f'TRY_CAST({alias}."{field_name}" AS TIMESTAMP) >= \'{date_from}\'')
+            conditions.append(f'TRY_CAST({alias}."{field_name}" AS TIMESTAMP) <= \'{date_to}\'')
+            conditions.append(f'{alias}."{field_name}" IS NOT NULL')
+            date_constraints_applied = True
 
+        elif field_meta.get("type") != "date" and isinstance(filter_value, list) and filter_value:
+            # Categorical filter
+            alias_map = {t: m["alias"] for t, m in TABLE_META.items()}
+            base_table_map = {"proc": "b_tblproceeding", "sched": "tbl_schedule", "motion": "tbl_court_motions"}
+            if table_name == base_table_map.get(table_type):
+                alias = base_alias
+            elif table_name in alias_map:
+                needs_tables.add(table_name)
+                alias = alias_map[table_name]
+            else:
+                alias = base_alias
+
+            quoted = ", ".join(f"'{v}'" for v in filter_value)
+            conditions.append(f'{alias}."{field_name}" IN ({quoted})')
+
+    # If no date filter was explicitly applied, add a default date constraint
+    if not date_constraints_applied:
+        if date_col is None:
+            date_col = _DATE_COL_MAP["Completion Date"].get(table_type, "COMP_DATE")
+        # Default: last 5 years
+        default_from = (date.today() - timedelta(days=5*365)).strftime("%Y-%m-%d")
+        default_to = date.today().strftime("%Y-%m-%d")
+        conditions.append(f'TRY_CAST({base_alias}."{date_col}" AS TIMESTAMP) >= \'{default_from}\'')
+        conditions.append(f'TRY_CAST({base_alias}."{date_col}" AS TIMESTAMP) <= \'{default_to}\'')
+        conditions.append(f'{base_alias}."{date_col}" IS NOT NULL')
+
+    if not conditions:
+        return "1=1", needs_tables
     return " AND ".join(conditions), needs_tables
 
 
@@ -1202,6 +1215,21 @@ def _sched_from(base_alias: str = "s", case_alias: str = "c", needs_tables: set[
     return build_from("tbl_schedule", base_alias, tables)
 
 
+# Derive the active date column for proceeding queries (used in charts)
+# Find the first date filter on b_tblproceeding, or default to COMP_DATE
+_proc_date = "COMP_DATE"
+for _fk, _fv in st.session_state.filters.items():
+    if _fk.startswith("b_tblproceeding.") and isinstance(_fv, dict):
+        _proc_date = _fk.split(".", 1)[1]
+        break
+
+_sched_date = "ADJ_DATE"
+for _fk, _fv in st.session_state.filters.items():
+    if _fk.startswith("tbl_schedule.") and isinstance(_fv, dict):
+        _sched_date = _fk.split(".", 1)[1]
+        break
+
+
 # ---------------------------------------------------------------------------
 # Hero header
 # ---------------------------------------------------------------------------
@@ -1216,10 +1244,227 @@ st.markdown("""
 
 
 # ---------------------------------------------------------------------------
+# Filter Popout (above tabs, in main area)
+# ---------------------------------------------------------------------------
+
+def _render_filter_popout():
+    """Render the filter popout card if one is active."""
+    popout_key = st.session_state.active_popout
+    if not popout_key:
+        return
+
+    parts = popout_key.split(".", 1)
+    if len(parts) != 2:
+        return
+    table_name, field_name = parts
+    field_meta = FIELD_META.get(table_name, {}).get(field_name, {})
+    if not field_meta:
+        st.session_state.active_popout = None
+        return
+
+    label = field_meta.get("label", field_name)
+    ftype = field_meta.get("type", "text")
+    is_date = ftype == "date"
+
+    st.markdown('<div class="filter-popout">', unsafe_allow_html=True)
+
+    if is_date:
+        # ----- DATE RANGE POPOUT -----
+        header_cols = st.columns([6, 1])
+        with header_cols[0]:
+            st.markdown(f"**📅 {label}**")
+        with header_cols[1]:
+            if st.button("Close", key="popout_close"):
+                st.session_state.active_popout = None
+                st.rerun()
+
+        # Get current date filter values
+        current = st.session_state.filters.get(popout_key, {})
+        current_from = current.get("from", "2020-01-01") if isinstance(current, dict) else "2020-01-01"
+        current_to = current.get("to", date.today().strftime("%Y-%m-%d")) if isinstance(current, dict) else date.today().strftime("%Y-%m-%d")
+
+        try:
+            from_val = datetime.strptime(current_from, "%Y-%m-%d").date()
+        except ValueError:
+            from_val = date(2020, 1, 1)
+        try:
+            to_val = datetime.strptime(current_to, "%Y-%m-%d").date()
+        except ValueError:
+            to_val = date.today()
+
+        d_cols = st.columns([2, 2, 3])
+        with d_cols[0]:
+            new_from = st.date_input("From", value=from_val, key=f"popout_date_from_{popout_key}")
+        with d_cols[1]:
+            new_to = st.date_input("To", value=to_val, key=f"popout_date_to_{popout_key}")
+
+        # Quick presets
+        with d_cols[2]:
+            st.markdown("**Quick Range**")
+            qc1, qc2, qc3 = st.columns(3)
+            with qc1:
+                if st.button("Last Year", key=f"popout_q1_{popout_key}"):
+                    new_from = date(date.today().year - 1, 1, 1)
+                    new_to = date.today()
+            with qc2:
+                if st.button("Last 5 Years", key=f"popout_q5_{popout_key}"):
+                    new_from = date(date.today().year - 5, 1, 1)
+                    new_to = date.today()
+            with qc3:
+                if st.button("All Time", key=f"popout_qall_{popout_key}"):
+                    new_from = date(2000, 1, 1)
+                    new_to = date.today()
+
+        apply_cols = st.columns([4, 1])
+        with apply_cols[1]:
+            if st.button("Apply Date Range", key=f"popout_apply_{popout_key}", type="primary"):
+                st.session_state.filters[popout_key] = {
+                    "from": new_from.strftime("%Y-%m-%d"),
+                    "to": new_to.strftime("%Y-%m-%d"),
+                }
+                st.session_state.active_popout = None
+                st.rerun()
+
+    else:
+        # ----- LOOKUP / TEXT / BOOLEAN POPOUT -----
+        header_cols = st.columns([6, 1])
+        with header_cols[0]:
+            st.markdown(f"**🔍 {label}**")
+        with header_cols[1]:
+            if st.button("Close", key="popout_close"):
+                st.session_state.active_popout = None
+                st.rerun()
+
+        # Get value counts
+        lookup_key = field_meta.get("lookup")
+        value_counts = get_field_value_counts(table_name, field_name, lookup_key)
+
+        # Current selections
+        current_selections = set(st.session_state.filters.get(popout_key, []))
+
+        # Search box
+        search = st.text_input("Search...", key=f"popout_search_{popout_key}", placeholder="Type to filter options...")
+
+        # Filter by search
+        if search:
+            search_lower = search.lower()
+            value_counts = [(c, d, n) for c, d, n in value_counts
+                            if search_lower in d.lower() or search_lower in c.lower()]
+
+        total_options = len(value_counts)
+
+        # Select All / Clear All
+        btn_cols = st.columns([1, 1, 4])
+        with btn_cols[0]:
+            if st.button("Select All", key=f"popout_selall_{popout_key}"):
+                current_selections = {c for c, d, n in value_counts}
+        with btn_cols[1]:
+            if st.button("Clear All", key=f"popout_clrall_{popout_key}"):
+                current_selections = set()
+
+        # Checkbox grid — 2 columns
+        col1, col2 = st.columns(2)
+        new_selections = set()
+        for i, (code, display, count) in enumerate(value_counts):
+            count_str = f"{count:,}"
+            target_col = col1 if i % 2 == 0 else col2
+            with target_col:
+                checked = st.checkbox(
+                    f"{display} ({count_str})",
+                    value=code in current_selections,
+                    key=f"popout_cb_{popout_key}_{code}",
+                )
+                if checked:
+                    new_selections.add(code)
+
+        if total_options == 500:
+            st.caption(f"Showing first 500 of many values. Use search to narrow down.")
+        else:
+            st.caption(f"{total_options} total options")
+
+        # Apply button
+        apply_cols = st.columns([4, 1])
+        with apply_cols[1]:
+            if st.button("Apply Filter", key=f"popout_apply_{popout_key}", type="primary"):
+                if new_selections:
+                    st.session_state.filters[popout_key] = sorted(new_selections)
+                else:
+                    st.session_state.filters.pop(popout_key, None)
+                st.session_state.active_popout = None
+                st.rerun()
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+# Render popout
+_render_filter_popout()
+
+
+# ---------------------------------------------------------------------------
+# Active Filters Bar
+# ---------------------------------------------------------------------------
+
+def _render_active_filters_bar():
+    """Render dismissible filter pills above the tabs."""
+    if not st.session_state.filters:
+        return
+
+    pills_html = '<div class="filter-pills"><span class="filter-pills-label">Active Filters:</span>'
+
+    for filter_key, filter_value in st.session_state.filters.items():
+        table_name, field_name = filter_key.split(".", 1)
+        field_meta = FIELD_META.get(table_name, {}).get(field_name, {})
+        label = field_meta.get("label", field_name)
+        lookup_key = field_meta.get("lookup")
+        lookup = LOOKUPS.get(lookup_key, {}) if lookup_key else {}
+
+        if isinstance(filter_value, dict):
+            # Date range
+            display = f"{filter_value.get('from','')} to {filter_value.get('to','')}"
+        elif isinstance(filter_value, list):
+            # Categorical — show up to 3 values
+            display_vals = [lookup.get(v, v) for v in filter_value[:3]]
+            display = ", ".join(display_vals)
+            if len(filter_value) > 3:
+                display += f" +{len(filter_value) - 3} more"
+        else:
+            display = str(filter_value)
+
+        pills_html += (
+            f'<span class="filter-pill">'
+            f'{label}: {display}'
+            f'</span>'
+        )
+
+    pills_html += '</div>'
+    st.markdown(pills_html, unsafe_allow_html=True)
+
+    # Render remove buttons using Streamlit (can't use HTML onclick)
+    filter_keys = list(st.session_state.filters.keys())
+    if filter_keys:
+        btn_cols = st.columns(len(filter_keys) + 1)
+        for i, fk in enumerate(filter_keys):
+            table_name, field_name = fk.split(".", 1)
+            field_meta = FIELD_META.get(table_name, {}).get(field_name, {})
+            label = field_meta.get("label", field_name)
+            with btn_cols[i]:
+                if st.button(f"Remove {label}", key=f"remove_filter_{fk}"):
+                    del st.session_state.filters[fk]
+                    st.rerun()
+        with btn_cols[-1]:
+            if st.button("Clear All", key="clear_all_filters"):
+                st.session_state.filters = {}
+                st.rerun()
+
+
+_render_active_filters_bar()
+
+
+# ---------------------------------------------------------------------------
 # Tabs
 # ---------------------------------------------------------------------------
 
-tab_exec, tab_outcomes, tab_courts, tab_judges, tab_hearings, tab_explore, tab_ai, tab_dm = st.tabs([
+tab_exec, tab_outcomes, tab_courts, tab_judges, tab_hearings, tab_explore, tab_ai = st.tabs([
     "Executive Summary",
     "Case Outcomes",
     "Court Performance",
@@ -1227,7 +1472,6 @@ tab_exec, tab_outcomes, tab_courts, tab_judges, tab_hearings, tab_explore, tab_a
     "Hearings",
     "Data Explorer",
     "AI Analyst",
-    "Data Model",
 ])
 
 
@@ -1492,6 +1736,15 @@ with tab_outcomes:
             needs_tables_nat_out.add("a_tblcase")
             from_nat_out = _proc_from("p", "c", needs_tables_nat_out)
 
+            # Derive date constraints for subquery
+            _date_from_str = "2020-01-01"
+            _date_to_str = date.today().strftime("%Y-%m-%d")
+            for _fk2, _fv2 in st.session_state.filters.items():
+                if _fk2.startswith("b_tblproceeding.") and isinstance(_fv2, dict):
+                    _date_from_str = _fv2.get("from", _date_from_str)
+                    _date_to_str = _fv2.get("to", _date_to_str)
+                    break
+
             heat_sql = f"""
                 WITH top_nats AS (
                     SELECT c.NAT, n.NAT_NAME
@@ -1505,8 +1758,8 @@ with tab_outcomes:
                     FROM b_tblproceeding p2
                     LEFT JOIN tbllookupcourtdecision d ON p2.DEC_CODE = d.strDecCode
                         AND p2.CASE_TYPE = d.strCaseType
-                    WHERE TRY_CAST(p2."{_proc_date}" AS TIMESTAMP) >= '{date_from_str}'
-                        AND TRY_CAST(p2."{_proc_date}" AS TIMESTAMP) <= '{date_to_str}'
+                    WHERE TRY_CAST(p2."{_proc_date}" AS TIMESTAMP) >= '{_date_from_str}'
+                        AND TRY_CAST(p2."{_proc_date}" AS TIMESTAMP) <= '{_date_to_str}'
                         AND p2."{_proc_date}" IS NOT NULL
                         AND d.strDecDescription IS NOT NULL
                     GROUP BY 1 ORDER BY COUNT(*) DESC LIMIT 5
@@ -2151,13 +2404,6 @@ with tab_ai:
 
 CRITICAL: All columns in the 6 main tables (a_tblcase, b_tblproceeding, tbl_schedule, tbl_court_appln, tbl_court_motions, b_tblproceedcharges) were imported as VARCHAR. You MUST use TRY_CAST() for date and number comparisons.
 
-The user's current date type filter is: "{date_type}"
-Date column mapping:
-- "Completion Date" -> b_tblproceeding.COMP_DATE, tbl_schedule.ADJ_DATE, tbl_court_motions.COMP_DATE
-- "Filing Date" -> b_tblproceeding.OSC_DATE, tbl_schedule.OSC_DATE, tbl_court_motions.OSC_DATE
-- "Hearing Date" -> b_tblproceeding.HEARING_DATE, tbl_schedule.ADJ_DATE
-Use the appropriate date column based on the user's selection when filtering by date.
-
 Key tables and relationships:
 - a_tblcase: Case master. PK: IDNCASE (BIGINT). Has NAT (nationality code), LANG (language code), CUSTODY, CASE_TYPE, C_BIRTHDATE (VARCHAR), Sex, DATE_OF_ENTRY (TIMESTAMP), LATEST_HEARING (TIMESTAMP), LPR.
 - b_tblproceeding: Main proceedings table. PK: IDNPROCEEDING (VARCHAR). IDNCASE links to a_tblcase (VARCHAR -- join with TRY_CAST(p.IDNCASE AS BIGINT) = c.IDNCASE). COMP_DATE (VARCHAR) is completion date, OSC_DATE (VARCHAR) is filing date, HEARING_DATE (VARCHAR). DEC_CODE (VARCHAR), IJ_CODE=judge, BASE_CITY_CODE=court, NAT, LANG, ABSENTIA, CASE_TYPE.
@@ -2273,155 +2519,3 @@ Rules:
         if st.button("Clear Conversation", key="clear_chat"):
             st.session_state.ai_messages = []
             st.rerun()
-
-
-# ===== TAB 8: Data Model ====================================================
-with tab_dm:
-    st.markdown('<p class="section-header">Data Model Configuration</p>', unsafe_allow_html=True)
-    st.caption("Control which tables and fields power the dashboard. Toggle tables on/off and select which fields appear as sidebar filters.")
-
-    config = st.session_state.dm_config
-    config_changed = False
-
-    # --- Table Selector: "Data Sources" panel ---
-    st.markdown("### Data Sources")
-
-    # Render table cards in a 2-column grid
-    table_names = list(TABLE_META.keys())
-    for row_start in range(0, len(table_names), 2):
-        cols = st.columns(2)
-        for col_idx in range(2):
-            idx = row_start + col_idx
-            if idx >= len(table_names):
-                break
-            table_name = table_names[idx]
-            meta = TABLE_META[table_name]
-            is_active = table_name in config["active_tables"]
-
-            with cols[col_idx]:
-                # Card visual header (HTML)
-                active_class = "active" if is_active else ""
-                row_count = get_table_row_count(table_name)
-                db_cols = get_table_columns(table_name)
-                field_count = len(db_cols)
-
-                st.markdown(f"""
-                <div class="dm-card {active_class}">
-                    <div class="dm-title">{meta["label"]}</div>
-                    <div class="dm-table-name">{table_name}</div>
-                    <div class="dm-desc">{meta["description"]}</div>
-                    <span class="dm-badge dm-badge-rows">{_fmt_number(row_count)} rows</span>
-                    <span class="dm-badge dm-badge-fields">{field_count} fields</span>
-                </div>
-                """, unsafe_allow_html=True)
-
-                # Toggle switch
-                new_active = st.toggle(
-                    f"Enable {meta['label']}",
-                    value=is_active,
-                    key=f"dm_toggle_{table_name}",
-                )
-                if new_active != is_active:
-                    if new_active:
-                        if table_name not in config["active_tables"]:
-                            config["active_tables"].append(table_name)
-                            # Initialize with default filter fields
-                            default_fields = [
-                                f for f, fm in FIELD_META.get(table_name, {}).items()
-                                if fm.get("filter_candidate") and fm.get("type") == "lookup"
-                            ][:3]  # Max 3 default filters
-                            config["active_filters"][table_name] = default_fields
-                    else:
-                        if table_name in config["active_tables"]:
-                            config["active_tables"].remove(table_name)
-                            config["active_filters"].pop(table_name, None)
-                    config_changed = True
-
-    st.markdown("---")
-
-    # --- Field Selector: expandable per active table ---
-    st.markdown("### Field Configuration")
-    st.caption("Select which fields from each active table appear as sidebar filters.")
-
-    for table_name in config["active_tables"]:
-        meta = TABLE_META.get(table_name, {})
-        fields = FIELD_META.get(table_name, {})
-
-        if not fields:
-            continue
-
-        active_field_list = config["active_filters"].get(table_name, [])
-        row_count = get_table_row_count(table_name)
-
-        with st.expander(f"{meta.get('label', table_name)} ({table_name}) -- {_fmt_number(row_count)} rows", expanded=False):
-            for field_name, field_meta in fields.items():
-                # Only show filter candidates
-                if not field_meta.get("filter_candidate", False):
-                    # Still show non-filter fields as info
-                    ftype = field_meta.get("type", "text")
-                    badge_class = {
-                        "date": "badge-date",
-                        "number": "badge-number",
-                        "boolean": "badge-boolean",
-                        "lookup": "badge-lookup",
-                    }.get(ftype, "badge-text")
-                    st.markdown(
-                        f'<div class="field-row">'
-                        f'<span class="field-name">{field_meta["label"]}</span>'
-                        f'<span class="field-col">{field_name}</span>'
-                        f'<span class="field-badge {badge_class}">{ftype}</span>'
-                        f'</div>',
-                        unsafe_allow_html=True,
-                    )
-                    continue
-
-                ftype = field_meta.get("type", "text")
-                badge_class = {
-                    "date": "badge-date",
-                    "number": "badge-number",
-                    "boolean": "badge-boolean",
-                    "lookup": "badge-lookup",
-                }.get(ftype, "badge-text")
-
-                # Build label with badges
-                extra_info = ""
-                if field_meta.get("lookup_table"):
-                    extra_info = f' <span class="field-badge badge-lookup">lookup: {field_meta["lookup_table"]}</span>'
-
-                col_check, col_info = st.columns([1, 4])
-                with col_check:
-                    is_enabled = field_name in active_field_list
-                    new_enabled = st.checkbox(
-                        field_meta["label"],
-                        value=is_enabled,
-                        key=f"dm_field_{table_name}_{field_name}",
-                    )
-                    if new_enabled != is_enabled:
-                        if new_enabled:
-                            if field_name not in active_field_list:
-                                active_field_list.append(field_name)
-                        else:
-                            if field_name in active_field_list:
-                                active_field_list.remove(field_name)
-                        config["active_filters"][table_name] = active_field_list
-                        config_changed = True
-
-                with col_info:
-                    st.markdown(
-                        f'<span class="field-col">{field_name}</span>'
-                        f'<span class="field-badge {badge_class}">{ftype}</span>'
-                        f'{extra_info}',
-                        unsafe_allow_html=True,
-                    )
-
-    # Save config if changed
-    if config_changed:
-        st.session_state.dm_config = config
-        _save_config(config)
-        st.rerun()
-
-    st.markdown("---")
-
-    # --- Current Config Summary ---
-    st.markdown("### Current Configuration")
-    st.json(config)
