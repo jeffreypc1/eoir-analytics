@@ -1502,7 +1502,7 @@ def _render_filter_popout():
                 checked = st.checkbox(
                     f"{display} ({count_str})",
                     value=code in current_selections,
-                    key=f"popout_cb_{popout_key}_{code}",
+                    key=f"popout_cb_{popout_key}_{i}_{code}",
                 )
                 if checked:
                     new_selections.add(code)
