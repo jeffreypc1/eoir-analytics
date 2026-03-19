@@ -1619,11 +1619,29 @@ def _render_filter_panel(container):
                     filter_key = f"{table_name}.{field_name}"
                     _render_filter_widget(table_name, field_name, field_info, filter_key)
 
-        # Clear All button at bottom
-        if st.session_state.filters:
-            if st.button("Clear All Filters", key="clear_all_panel_btn", use_container_width=True):
-                st.session_state.filters = {}
+        # Footer with Apply & Clear buttons
+        st.divider()
+        _panel_count = len(st.session_state.filters)
+        if _panel_count:
+            st.markdown(f"""
+            <div style="background: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 8px;
+                        padding: 8px 12px; text-align: center; margin-bottom: 8px;">
+                <span style="color: #065F46; font-weight: 600; font-size: 0.85rem;">
+                    ✓ {_panel_count} filter{'s' if _panel_count != 1 else ''} active — charts updating live
+                </span>
+            </div>
+            """, unsafe_allow_html=True)
+
+        apply_col, clear_col = st.columns(2)
+        with apply_col:
+            if st.button("✓ Apply & Close", key="apply_close_panel", type="primary", use_container_width=True):
+                st.session_state.show_filter_modal = False
                 st.rerun()
+        with clear_col:
+            if st.session_state.filters:
+                if st.button("✕ Clear All", key="clear_all_panel_btn", use_container_width=True):
+                    st.session_state.filters = {}
+                    st.rerun()
 
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1720,20 +1738,41 @@ def _render_active_filters_bar():
 # ---------------------------------------------------------------------------
 
 if st.session_state.active_tables:
-    pill_col, btn_col = st.columns([8, 2])
-    with pill_col:
+    # Prominent filter bar — always visible
+    active_filter_count = len(st.session_state.filters)
+    _filter_open = st.session_state.get("show_filter_modal", False)
+
+    if active_filter_count > 0:
+        # Show a prominent colored banner with all active filters
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #EFF6FF 0%, #F5F3FF 100%);
+                    border: 1px solid #BFDBFE; border-radius: 12px; padding: 16px 20px;
+                    margin-bottom: 16px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                <span style="font-weight: 700; color: #1E40AF; font-size: 0.9rem;">
+                    \U0001f50d {active_filter_count} Active Filter{'s' if active_filter_count != 1 else ''} Applied
+                </span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
         _render_active_filters_bar()
-    with btn_col:
-        active_filter_count = len(st.session_state.filters)
-        _filter_open = st.session_state.get("show_filter_modal", False)
-        _btn_label = f"\U0001f50d Filters ({active_filter_count})" if active_filter_count else "\U0001f50d Filters"
+
+    # Filter button row
+    btn_c1, btn_c2, btn_c3 = st.columns([2, 2, 6])
+    with btn_c1:
+        _btn_label = f"\U0001f50d Filters ({active_filter_count})" if active_filter_count else "\U0001f50d Add Filters"
         if st.button(_btn_label, key="main_filter_toggle",
                      type="secondary" if _filter_open else "primary",
                      use_container_width=True):
             st.session_state.show_filter_modal = not _filter_open
             st.rerun()
-else:
-    _render_active_filters_bar()
+    with btn_c2:
+        if active_filter_count and st.button("\u2715 Clear All Filters", key="main_clear_all", use_container_width=True):
+            st.session_state.filters = {}
+            st.rerun()
+
+elif not st.session_state.active_tables:
+    pass  # Landing page handles this
 
 
 # ---------------------------------------------------------------------------
