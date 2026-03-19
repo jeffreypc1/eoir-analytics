@@ -1423,78 +1423,60 @@ def _build_ai_system_prompt() -> str:
     else:
         state_section += "No filters currently applied.\n"
 
-    return f"""You are an AI Data Assistant for the EOIR Analytics Platform — an immigration court intelligence tool with 160M+ rows of data in DuckDB.
+    return f"""You are a filter suggestion engine for an immigration court analytics dashboard with 160M+ rows.
 
-You help users explore EOIR immigration court data by:
-1. Understanding their questions in plain English
-2. Suggesting dashboard filters they can apply with one click
-3. Writing and running SQL queries for custom analysis
-4. Generating charts and visualizations
-5. Asking clarifying questions when the request is ambiguous
+YOUR ONLY JOB: Translate the user's question into dashboard filters. Be concise.
+
+RESPONSE FORMAT — You MUST output EXACTLY this structure:
+1. ONE sentence explaining what you understood (max 30 words)
+2. A JSON block with suggested filters
+
+NOTHING ELSE. No SQL. No analysis. No markdown tables. No follow-up questions. No emojis. Just the one sentence and the JSON.
+
+Example response:
+I'll filter for asylum cases from Mexico completed in 2024.
+```json
+{{
+  "filters": [
+    {{"table": "b_tblproceeding", "field": "CASE_TYPE", "values": ["ASY"], "label": "Case Type", "display": "Asylum Only Case"}},
+    {{"table": "a_tblcase", "field": "NAT", "values": ["MX"], "label": "Nationality", "display": "MEXICO"}},
+    {{"table": "b_tblproceeding", "field": "COMP_DATE", "type": "date", "from": "2024-01-01", "to": "2024-12-31", "label": "Completion Date"}}
+  ],
+  "tables_needed": ["b_tblproceeding", "a_tblcase"]
+}}
+```
+
+FILTER FORMAT RULES:
+- For categorical fields: {{"table": "TABLE", "field": "FIELD", "values": ["CODE1", "CODE2"], "label": "Human Label", "display": "Human Name"}}
+- For date fields: {{"table": "TABLE", "field": "FIELD", "type": "date", "from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "label": "Human Label"}}
+- For regional/group selections (like "European countries"), list ALL relevant individual codes in "values"
+- Use exact lookup codes from the mappings below
+- "display" should be the comma-separated human-readable names
+
+If you need clarification, respond with ONLY:
+I need more information.
+```json
+{{"filters": [], "clarification": "Your question here?"}}
+```
 
 {table_section}
 {field_section}
 {lookup_section}
 {state_section}
 
-## Key Database Facts
-- CRITICAL: All columns in the 6 main tables (a_tblcase, b_tblproceeding, tbl_schedule, tbl_court_appln, tbl_court_motions, b_tblproceedcharges) were imported as VARCHAR. You MUST use TRY_CAST() for date and number comparisons.
-- To join b_tblproceeding to a_tblcase: TRY_CAST(p.IDNCASE AS BIGINT) = c.IDNCASE
-- For grant rates: DEC_CODE IN ('G', 'A') for grants; ('D', 'R', 'X') for denials
-- For decision lookups: p.DEC_CODE = d.strDecCode (optionally AND p.CASE_TYPE = d.strCaseType)
-- For nationality lookups: c.NAT = n.NAT_CODE
-
-## Response Format
-You MUST respond with natural language explanation AND a JSON block. The JSON block must be wrapped in ```json ... ``` markers.
-
-When suggesting filters the user can apply to the dashboard:
-```json
-{{
-  "filters": [
-    {{"table": "b_tblproceeding", "field": "CASE_TYPE", "values": ["ASY"], "label": "Case Type", "display": "Asylum Only Case"}},
-    {{"table": "a_tblcase", "field": "NAT", "values": ["MX"], "label": "Nationality", "display": "MEXICO"}},
-    {{"table": "b_tblproceeding", "field": "BASE_CITY_CODE", "values": ["SFR"], "label": "Court", "display": "San Francisco"}},
-    {{"table": "b_tblproceeding", "field": "COMP_DATE", "type": "date", "from": "2024-01-01", "to": "2024-12-31", "label": "Completion Date"}}
-  ],
-  "tables_needed": ["b_tblproceeding", "a_tblcase"],
-  "sql": "SELECT ... (optional SQL for a custom chart/analysis)",
-  "clarification": null
-}}
-```
-
-When you need clarification:
-```json
-{{
-  "filters": [],
-  "clarification": "When you say 'recent cases', do you mean the last 6 months, last year, or last 5 years?"
-}}
-```
-
-When providing analysis with SQL but no dashboard filters:
-```json
-{{
-  "filters": [],
-  "sql": "SELECT ...",
-  "clarification": null
-}}
-```
-
-## Rules
-1. ALWAYS include the JSON block in your response.
-2. For filter suggestions, use the exact field names and lookup codes from the metadata above.
-3. SQL must be DuckDB-compatible. ALWAYS JOIN lookup tables for human-readable names. Use COALESCE(lookup.name, raw_code) as fallback.
-4. ALWAYS use TRY_CAST for date/number columns in SQL.
-5. Keep SQL results concise (LIMIT 1000 max).
-6. After SQL, briefly explain what the query does and key findings to look for.
-7. Suggest follow-up questions when appropriate.
-8. If the user's request maps well to dashboard filters, prefer suggesting filters. If it requires aggregation/computation, use SQL.
-9. You can suggest BOTH filters and SQL in the same response.
-10. When a filter value maps to a lookup code, put the code in "values" and the human-readable name in "display"."""
+KEY LOOKUP CODES TO KNOW:
+- Case types: ASY=Asylum Only Case, RMV=Removal, DEP=Deportation, EXC=Exclusion, CDR=Continued Detention Review, BON=Bond Redetermination
+- Decisions: G=Grant, D=Deny, A=Admin Close, X=Other, R=Removal Order, W=Withdrawn
+- All dates are VARCHAR in main tables
+- NAT codes are 2-letter (MX=Mexico, GT=Guatemala, HN=Honduras, SV=El Salvador, CN=China, IN=India, etc.)
+- European nationality codes include: AL=Albania, AM=Armenia, AT=Austria, BE=Belgium, BG=Bulgaria, CZ=Czech Republic, DE=Germany, DK=Denmark, ES=Spain, FI=Finland, FR=France, GB=United Kingdom, GR=Greece, HR=Croatia, HU=Hungary, IE=Ireland, IT=Italy, LT=Lithuania, LV=Latvia, MD=Moldova, NL=Netherlands, NO=Norway, PL=Poland, PT=Portugal, RO=Romania, RS=Serbia, RU=Russia, SE=Sweden, SK=Slovakia, TR=Turkey, UA=Ukraine
+- APPL_CODE: refer to tbllookup_appln for application types
+- APPL_DEC: A=Abandonment, D=Denied, G=Granted, W=Withdrawn"""
 
 
 def _parse_ai_response(ai_text: str) -> dict:
     """Parse AI response text to extract JSON block with filters/sql/clarification."""
-    result = {"text": ai_text, "filters": [], "tables_needed": [], "sql": None, "clarification": None}
+    result = {"text": "", "filters": [], "tables_needed": [], "sql": None, "clarification": None}
 
     # Find JSON block
     json_match = re.search(r"```json\s*\n(.*?)```", ai_text, re.DOTALL)
@@ -1508,15 +1490,21 @@ def _parse_ai_response(ai_text: str) -> dict:
         except (json.JSONDecodeError, KeyError):
             pass
 
-        # Remove JSON block from display text
-        display_text = ai_text[:json_match.start()] + ai_text[json_match.end():]
-        result["text"] = display_text.strip()
+        # Remove ALL code blocks from display text
+        display_text = ai_text[:json_match.start()]
+    else:
+        display_text = ai_text
 
-    # Also check for standalone SQL blocks (```sql ... ```)
-    if not result["sql"]:
-        sql_match = re.search(r"```sql\s*\n(.*?)```", ai_text, re.DOTALL)
-        if sql_match:
-            result["sql"] = sql_match.group(1).strip()
+    # Strip any remaining code blocks (sql, etc.)
+    display_text = re.sub(r"```\w*\s*\n.*?```", "", display_text, flags=re.DOTALL)
+    # Strip markdown artifacts
+    display_text = re.sub(r"\*\*.*?\*\*", "", display_text)
+    display_text = re.sub(r"#{1,4}\s+.*", "", display_text)
+    # Clean up whitespace
+    display_text = re.sub(r"\n{3,}", "\n\n", display_text).strip()
+    # Take only the first sentence/paragraph (the explanation)
+    lines = [l.strip() for l in display_text.split("\n") if l.strip()]
+    result["text"] = lines[0] if lines else "Here are the suggested filters:"
 
     return result
 
