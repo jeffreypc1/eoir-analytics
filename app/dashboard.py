@@ -24,10 +24,15 @@ import streamlit as st
 # ---------------------------------------------------------------------------
 # .env + path setup
 # ---------------------------------------------------------------------------
-_ENV_PATH = Path(__file__).resolve().parent.parent.parent / ".env"
-if _ENV_PATH.exists():
-    from dotenv import load_dotenv
-    load_dotenv(_ENV_PATH)
+from dotenv import load_dotenv
+for _env_candidate in [
+    Path(__file__).resolve().parent.parent / ".env",
+    Path.home() / "my-new-website" / ".env",
+    Path(__file__).resolve().parent.parent.parent / ".env",
+]:
+    if _env_candidate.exists():
+        load_dotenv(_env_candidate)
+        break
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
