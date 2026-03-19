@@ -374,29 +374,31 @@ button[data-testid="stBaseButton-secondary"] {{
     padding: 4px 16px !important;
 }}
 
-/* -- Filter panel (right drawer) -- */
-.filter-panel {{
+/* -- Modal-like filter overlay -- */
+.filter-modal-backdrop {{
+    background: rgba(15, 23, 42, 0.06);
+    border-radius: 20px;
+    padding: 4px;
+    margin-bottom: 20px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.12);
+}}
+.filter-modal-card {{
     background: {CARD_BG};
-    border-left: 2px solid #E2E8F0;
-    border-radius: 16px;
-    padding: 24px;
-    box-shadow: -4px 0 24px rgba(0,0,0,0.06);
-    min-height: 60vh;
-    animation: slideIn 0.2s ease;
+    border-radius: 20px;
+    padding: 28px 32px;
+    margin: 0 auto 24px;
+    max-width: 800px;
+    box-shadow: 0 12px 48px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05);
+    position: relative;
+    animation: modalSlideIn 0.25s ease;
+    max-height: 70vh;
+    overflow-y: auto;
 }}
-@keyframes slideIn {{
-    from {{ opacity: 0; transform: translateX(12px); }}
-    to {{ opacity: 1; transform: translateX(0); }}
+@keyframes modalSlideIn {{
+    from {{ opacity: 0; transform: translateY(-12px); }}
+    to {{ opacity: 1; transform: translateY(0); }}
 }}
-.filter-panel-header {{
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 16px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid #E2E8F0;
-}}
-.filter-panel-title {{
+.filter-modal-title {{
     font-size: 1rem;
     font-weight: 700;
     color: {TEXT_PRIMARY};
@@ -405,13 +407,15 @@ button[data-testid="stBaseButton-secondary"] {{
     gap: 8px;
 }}
 
-/* -- Active filter pills -- */
+/* -- Active filter pills (compact single line) -- */
 .filter-pills {{
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 8px;
-    padding: 12px 0;
+    padding: 8px 0;
     align-items: center;
+    overflow-x: auto;
+    white-space: nowrap;
 }}
 .filter-pill {{
     display: inline-flex;
@@ -2302,86 +2306,6 @@ def _render_filter_widget(table_name: str, field_name: str, field_info: dict, fi
             del st.session_state.filters[filter_key]
 
 
-def _render_filter_panel(container):
-    """Render the filter panel inside the given Streamlit container (right column)."""
-    with container:
-        st.markdown('<div class="filter-panel">', unsafe_allow_html=True)
-
-        # Header row with close button
-        col_title, col_close = st.columns([5, 1])
-        with col_title:
-            st.markdown('<div class="filter-panel-title">\U0001f50d Filters</div>',
-                        unsafe_allow_html=True)
-        with col_close:
-            if st.button("\u2715", key="close_filters", help="Close filter panel"):
-                st.session_state.show_filter_modal = False
-                st.rerun()
-
-        # Search box to find fields
-        field_search = st.text_input(
-            "Search fields...", key="filter_field_search",
-            placeholder="Type to find a field...",
-            label_visibility="collapsed",
-        )
-        field_search_lower = field_search.lower().strip() if field_search else ""
-
-        # For each active table, show its filterable fields
-        for table_name in st.session_state.active_tables:
-            if table_name not in TABLE_META:
-                continue
-            meta = TABLE_META[table_name]
-            fields = FIELD_META.get(table_name, {})
-            hidden_fields = _get_hidden_fields(table_name)
-
-            # Build visible field list
-            field_list = [
-                (k, v) for k, v in fields.items()
-                if k not in hidden_fields
-            ]
-
-            # Apply search filter
-            if field_search_lower:
-                field_list = [
-                    (k, v) for k, v in field_list
-                    if field_search_lower in v.get("label", k).lower()
-                    or field_search_lower in k.lower()
-                ]
-
-            if not field_list:
-                continue
-
-            with st.expander(f"{meta.get('label', table_name)}", expanded=True):
-                for field_name, field_info in field_list:
-                    filter_key = f"{table_name}.{field_name}"
-                    _render_filter_widget(table_name, field_name, field_info, filter_key, ctx="panel_")
-
-        # Footer with Apply & Clear buttons
-        st.divider()
-        _panel_count = len(st.session_state.filters)
-        if _panel_count:
-            st.markdown(f"""
-            <div style="background: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 8px;
-                        padding: 8px 12px; text-align: center; margin-bottom: 8px;">
-                <span style="color: #065F46; font-weight: 600; font-size: 0.85rem;">
-                    ✓ {_panel_count} filter{'s' if _panel_count != 1 else ''} active — charts updating live
-                </span>
-            </div>
-            """, unsafe_allow_html=True)
-
-        apply_col, clear_col = st.columns(2)
-        with apply_col:
-            if st.button("✓ Apply & Close", key="apply_close_panel", type="primary", use_container_width=True):
-                st.session_state.show_filter_modal = False
-                st.rerun()
-        with clear_col:
-            if st.session_state.filters:
-                if st.button("✕ Clear All", key="clear_all_panel_btn", use_container_width=True):
-                    st.session_state.filters = {}
-                    st.rerun()
-
-        st.markdown('</div>', unsafe_allow_html=True)
-
-
 # ---------------------------------------------------------------------------
 # Active Filters Bar
 # ---------------------------------------------------------------------------
@@ -2400,82 +2324,80 @@ _TABLE_PILL_CLASS = {
 }
 
 
+def _format_filter_display(filter_key: str, filter_value) -> str:
+    """Format a single filter value for display in pills."""
+    table_name, field_name = filter_key.split(".", 1)
+    field_meta = FIELD_META.get(table_name, {}).get(field_name, {})
+    label = field_meta.get("label", field_name)
+    lookup_key = field_meta.get("lookup")
+    lookup = LOOKUPS.get(lookup_key, {}) if lookup_key else {}
+
+    if isinstance(filter_value, dict):
+        ft = filter_value.get("type", "date")
+        if ft == "date":
+            from_str = filter_value.get("from", "")
+            to_str = filter_value.get("to", "")
+            try:
+                from_display = datetime.strptime(from_str, "%Y-%m-%d").strftime("%m/%d/%Y") if from_str else ""
+            except ValueError:
+                from_display = from_str
+            try:
+                to_display = datetime.strptime(to_str, "%Y-%m-%d").strftime("%m/%d/%Y") if to_str else ""
+            except ValueError:
+                to_display = to_str
+            display = f"{from_display}\u2192{to_display}" if from_display and to_display else (from_display or to_display)
+        elif ft == "number":
+            nmin = filter_value.get("min", 0)
+            nmax = filter_value.get("max", 0)
+            display = f"{nmin:,.0f}\u2013{nmax:,.0f}"
+        else:
+            display = str(filter_value)
+    elif isinstance(filter_value, list):
+        display_vals = [lookup.get(v, v) for v in filter_value[:3]]
+        display = ", ".join(display_vals)
+        if len(filter_value) > 3:
+            display += f" +{len(filter_value) - 3}"
+    else:
+        display = str(filter_value)
+
+    return f"{label}: {display}"
+
+
 def _render_active_filters_bar():
-    """Render dismissible filter pills above the tabs."""
+    """Render a compact single-line active filters display with edit/clear buttons."""
     if not st.session_state.filters:
         return
 
-    pills_html = '<div class="filter-pills"><span class="filter-pills-label">Active Filters:</span>'
+    active_count = len(st.session_state.filters)
 
-    for filter_key, filter_value in st.session_state.filters.items():
-        table_name, field_name = filter_key.split(".", 1)
-        table_meta = TABLE_META.get(table_name, {})
-        field_meta = FIELD_META.get(table_name, {}).get(field_name, {})
-        label = field_meta.get("label", field_name)
-        table_label = table_meta.get("label", table_name)
-        lookup_key = field_meta.get("lookup")
-        lookup = LOOKUPS.get(lookup_key, {}) if lookup_key else {}
+    # Build compact pill HTML
+    pills = []
+    for fk, fv in st.session_state.filters.items():
+        table_name = fk.split(".", 1)[0]
         pill_class = _TABLE_PILL_CLASS.get(table_name, "default")
-
-        if isinstance(filter_value, dict):
-            ft = filter_value.get("type", "date")
-            if ft == "date":
-                from_str = filter_value.get("from", "")
-                to_str = filter_value.get("to", "")
-                # Convert to MM/DD/YYYY for display
-                try:
-                    from_display = datetime.strptime(from_str, "%Y-%m-%d").strftime("%m/%d/%Y") if from_str else ""
-                except ValueError:
-                    from_display = from_str
-                try:
-                    to_display = datetime.strptime(to_str, "%Y-%m-%d").strftime("%m/%d/%Y") if to_str else ""
-                except ValueError:
-                    to_display = to_str
-                display = f"{from_display} → {to_display}" if from_display and to_display else (from_display or to_display)
-            elif ft == "number":
-                nmin = filter_value.get("min", 0)
-                nmax = filter_value.get("max", 0)
-                display = f"{nmin:,.0f} \u2013 {nmax:,.0f}"
-            else:
-                display = str(filter_value)
-        elif isinstance(filter_value, list):
-            # Categorical -- show up to 3 resolved values
-            display_vals = [lookup.get(v, v) for v in filter_value[:3]]
-            display = ", ".join(display_vals)
-            if len(filter_value) > 3:
-                display += f" +{len(filter_value) - 3} more"
-        else:
-            display = str(filter_value)
-
-        pills_html += (
-            f'<span class="filter-pill filter-pill-{pill_class}">'
-            f'<span class="filter-pill-table">{table_label}</span> '
-            f'{label}: {display}'
-            f'</span>'
+        display_text = _format_filter_display(fk, fv)
+        pills.append(
+            f'<span class="filter-pill filter-pill-{pill_class}">{display_text}</span>'
         )
 
-    pills_html += '</div>'
+    pills_html = (
+        f'<div class="filter-pills">'
+        f'<span class="filter-pills-label">\U0001f50d {active_count} filter{"s" if active_count != 1 else ""} active:</span>'
+        + "".join(pills)
+        + '</div>'
+    )
     st.markdown(pills_html, unsafe_allow_html=True)
 
-    # Render remove buttons using Streamlit (can't use HTML onclick)
-    filter_keys = list(st.session_state.filters.keys())
-    if filter_keys:
-        # Cap columns to avoid too-narrow buttons
-        max_cols = min(len(filter_keys) + 1, 6)
-        btn_cols = st.columns(max_cols)
-        for i, fk in enumerate(filter_keys):
-            col_idx = i % (max_cols - 1)
-            table_name, field_name = fk.split(".", 1)
-            field_meta = FIELD_META.get(table_name, {}).get(field_name, {})
-            label = field_meta.get("label", field_name)
-            with btn_cols[col_idx]:
-                if st.button(f"\u2715 {label}", key=f"remove_filter_{fk}"):
-                    del st.session_state.filters[fk]
-                    st.rerun()
-        with btn_cols[max_cols - 1]:
-            if st.button("Clear All", key="clear_all_filters"):
-                st.session_state.filters = {}
-                st.rerun()
+    # Edit + Clear buttons on one line
+    _pill_c1, _pill_c2, _pill_c3 = st.columns([1.5, 1.5, 7])
+    with _pill_c1:
+        if st.button("\U0001f50d Edit", key="pill_edit_filters", use_container_width=True):
+            st.session_state.show_filter_modal = True
+            st.rerun()
+    with _pill_c2:
+        if st.button("\u2715 Clear", key="pill_clear_all", use_container_width=True):
+            st.session_state.filters = {}
+            st.rerun()
 
 
 # ---------------------------------------------------------------------------
@@ -2484,24 +2406,15 @@ def _render_active_filters_bar():
 
 if st.session_state.active_tables:
     active_filter_count = len(st.session_state.filters)
-    _filter_open = st.session_state.get("show_filter_modal", False)
 
-    # Pill bar + filter button on one line
-    if active_filter_count > 0:
-        _render_active_filters_bar()
-
-    _fb_c1, _fb_c2, _fb_c3 = st.columns([2, 2, 6])
-    with _fb_c1:
-        _btn_label = f"Filters ({active_filter_count})" if active_filter_count else "Filters"
-        if st.button(_btn_label, key="main_filter_toggle",
-                     type="secondary" if _filter_open else "primary",
-                     use_container_width=True):
-            st.session_state.show_filter_modal = not _filter_open
-            st.rerun()
-    with _fb_c2:
-        if active_filter_count and st.button("Clear All", key="main_clear_all", use_container_width=True):
-            st.session_state.filters = {}
-            st.rerun()
+    # Compact filter button
+    if not st.session_state.get("show_filter_modal"):
+        _fb_c1, _fb_c2 = st.columns([2, 8])
+        with _fb_c1:
+            _btn_label = f"\U0001f50d Filters ({active_filter_count})" if active_filter_count else "\U0001f50d Filters"
+            if st.button(_btn_label, key="open_filters", type="secondary", use_container_width=True):
+                st.session_state.show_filter_modal = True
+                st.rerun()
 
 elif not st.session_state.active_tables:
     pass  # Landing page handles this
@@ -2800,33 +2713,106 @@ if not _active_table_tabs:
     st.stop()
 
 # ---------------------------------------------------------------------------
-# Layout: charts (left) + optional filter panel (right)
+# Modal Overlay (when filters are open)
 # ---------------------------------------------------------------------------
 
-_filter_panel_open = st.session_state.get("show_filter_modal", False)
+if st.session_state.get("show_filter_modal"):
+    st.markdown('<div class="filter-modal-backdrop">', unsafe_allow_html=True)
 
-if _filter_panel_open:
-    _chart_col, _filter_col = st.columns([7, 3])
-else:
-    _chart_col = st.container()
-    _filter_col = None
+    with st.container():
+        # Modal header
+        _mhdr1, _mhdr2 = st.columns([8, 1])
+        with _mhdr1:
+            _modal_active = len(st.session_state.filters)
+            st.markdown(f"### \U0001f50d Filters {f'({_modal_active} active)' if _modal_active else ''}")
+        with _mhdr2:
+            if st.button("\u2715 Close", key="close_modal_top"):
+                st.session_state.show_filter_modal = False
+                st.rerun()
 
-# Render filter panel in right column (if open)
-if _filter_col is not None:
-    _render_filter_panel(_filter_col)
+        # Search box to find fields
+        _modal_search = st.text_input(
+            "Search fields...", key="modal_field_search",
+            placeholder="Type to find a field...",
+            label_visibility="collapsed",
+        )
+        _modal_search_lower = _modal_search.lower().strip() if _modal_search else ""
 
-# Render tabs + charts in left column
-with _chart_col:
-    _tab_names = [label for _, label in _active_table_tabs] + ["Filters"]
-    _tabs = st.tabs(_tab_names)
+        # Render filter widgets for each active table
+        for _m_table in st.session_state.active_tables:
+            if _m_table not in TABLE_META:
+                continue
+            _m_meta = TABLE_META[_m_table]
+            _m_fields = FIELD_META.get(_m_table, {})
+            _m_hidden = _get_hidden_fields(_m_table)
 
-    # Render each active table tab
-    for i, (tn, label) in enumerate(_active_table_tabs):
-        with _tabs[i]:
-            render_table_analysis(tn)
+            _m_field_list = [
+                (k, v) for k, v in _m_fields.items()
+                if k not in _m_hidden
+            ]
 
-    # Filters tab is at the end
-    _explore_idx = len(_active_table_tabs)
+            if _modal_search_lower:
+                _m_field_list = [
+                    (k, v) for k, v in _m_field_list
+                    if _modal_search_lower in v.get("label", k).lower()
+                    or _modal_search_lower in k.lower()
+                ]
+
+            if not _m_field_list:
+                continue
+
+            with st.expander(f"{_m_meta.get('label', _m_table)}", expanded=True):
+                for _m_fname, _m_finfo in _m_field_list:
+                    _m_fkey = f"{_m_table}.{_m_fname}"
+                    _render_filter_widget(_m_table, _m_fname, _m_finfo, _m_fkey, ctx="modal_")
+
+        # Footer
+        st.divider()
+        _modal_count = len(st.session_state.filters)
+        if _modal_count:
+            st.markdown(f"""
+            <div style="background: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 8px;
+                        padding: 8px 12px; text-align: center; margin-bottom: 8px;">
+                <span style="color: #065F46; font-weight: 600; font-size: 0.85rem;">
+                    \u2713 {_modal_count} filter{'s' if _modal_count != 1 else ''} active \u2014 charts updating live
+                </span>
+            </div>
+            """, unsafe_allow_html=True)
+
+        _fc1, _fc2, _fc3 = st.columns([2, 2, 6])
+        with _fc1:
+            if st.button("\u2713 Done", type="primary", key="done_modal", use_container_width=True):
+                st.session_state.show_filter_modal = False
+                st.rerun()
+        with _fc2:
+            if _modal_count:
+                if st.button("\u2715 Clear All", key="clear_modal", use_container_width=True):
+                    st.session_state.filters = {}
+                    st.rerun()
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ---------------------------------------------------------------------------
+# Compact active filters line (when modal is closed)
+# ---------------------------------------------------------------------------
+
+if not st.session_state.get("show_filter_modal") and st.session_state.filters:
+    _render_active_filters_bar()
+
+# ---------------------------------------------------------------------------
+# Charts — always full width
+# ---------------------------------------------------------------------------
+
+_tab_names = [label for _, label in _active_table_tabs] + ["Filters"]
+_tabs = st.tabs(_tab_names)
+
+# Render each active table tab
+for i, (tn, label) in enumerate(_active_table_tabs):
+    with _tabs[i]:
+        render_table_analysis(tn)
+
+# Filters tab is at the end
+_explore_idx = len(_active_table_tabs)
 
 
 # ===== Filters Tab ============================================================
