@@ -1750,44 +1750,59 @@ st.markdown(f"""
 
 
 # ---------------------------------------------------------------------------
-# AI Input — Hero Search Element
+# AI Assistant — Toggle Button + Expandable Search
 # ---------------------------------------------------------------------------
 
-st.markdown('<div class="ai-search-wrapper">', unsafe_allow_html=True)
-st.markdown('<p class="ai-search-prompt">Ask a question about immigration court data</p>', unsafe_allow_html=True)
+if "show_ai_search" not in st.session_state:
+    st.session_state.show_ai_search = False
 
-# Input row: text input + voice + send
-ai_col1, ai_col2, ai_col3 = st.columns([8, 1, 1])
-with ai_col1:
-    ai_text = st.text_input(
-        "Search",
-        placeholder="Show me asylum cases from Mexico in 2024...",
-        key="ai_top_input",
-        label_visibility="collapsed",
-    )
-with ai_col2:
-    voice_clicked = st.button("🎤", key="voice_btn", help="Record voice question", use_container_width=True)
-with ai_col3:
-    send_clicked = st.button("→", key="send_ai", type="primary", use_container_width=True)
+# Toggle button — always visible, compact
+_ai_btn_label = "🤖 Ask AI" if not st.session_state.show_ai_search else "🤖 Close AI Assistant"
+if st.button(_ai_btn_label, key="toggle_ai_search", use_container_width=False):
+    st.session_state.show_ai_search = not st.session_state.show_ai_search
+    st.rerun()
 
-# Suggestion chips
-suggestions = [
-    "Asylum from Mexico",
-    "Top judges by grant rate",
-    "Bond outcomes",
-    "Most common charges",
-]
-chip_cols = st.columns(len(suggestions))
-for i, (col, sugg) in enumerate(zip(chip_cols, suggestions)):
-    with col:
-        if st.button(sugg, key=f"sugg_top_{i}", use_container_width=True):
-            st.session_state.ai_pending_question = sugg
-            st.rerun()
+# Expandable AI search area
+ai_text = ""
+voice_clicked = False
+send_clicked = False
 
-st.markdown('</div>', unsafe_allow_html=True)
+if st.session_state.show_ai_search:
+    st.markdown('<div class="ai-search-wrapper">', unsafe_allow_html=True)
+    st.markdown('<p class="ai-search-prompt">Ask a question about immigration court data</p>', unsafe_allow_html=True)
+
+    # Input row: text input + voice + send
+    ai_col1, ai_col2, ai_col3 = st.columns([8, 1, 1])
+    with ai_col1:
+        ai_text = st.text_input(
+            "Search",
+            placeholder="Show me asylum cases from Mexico in 2024...",
+            key="ai_top_input",
+            label_visibility="collapsed",
+        )
+    with ai_col2:
+        voice_clicked = st.button("🎤", key="voice_btn", help="Record voice question", use_container_width=True)
+    with ai_col3:
+        send_clicked = st.button("→", key="send_ai", type="primary", use_container_width=True)
+
+    # Suggestion chips
+    suggestions = [
+        "Asylum from Mexico",
+        "Top judges by grant rate",
+        "Bond outcomes",
+        "Most common charges",
+    ]
+    chip_cols = st.columns(len(suggestions))
+    for i, (col, sugg) in enumerate(zip(chip_cols, suggestions)):
+        with col:
+            if st.button(sugg, key=f"sugg_top_{i}", use_container_width=True):
+                st.session_state.ai_pending_question = sugg
+                st.rerun()
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # Voice recording with Web Speech API
-if voice_clicked:
+if voice_clicked and st.session_state.show_ai_search:
     st.session_state.show_voice_recorder = True
 
 if st.session_state.get("show_voice_recorder"):
