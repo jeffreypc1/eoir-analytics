@@ -24,15 +24,29 @@ import streamlit as st
 # ---------------------------------------------------------------------------
 # .env + path setup
 # ---------------------------------------------------------------------------
-from dotenv import load_dotenv
-for _env_candidate in [
-    Path(__file__).resolve().parent.parent / ".env",
-    Path.home() / "my-new-website" / ".env",
-    Path(__file__).resolve().parent.parent.parent / ".env",
-]:
-    if _env_candidate.exists():
-        load_dotenv(_env_candidate)
-        break
+try:
+    from dotenv import load_dotenv
+    for _env_candidate in [
+        Path(__file__).resolve().parent.parent / ".env",
+        Path.home() / "my-new-website" / ".env",
+        Path(__file__).resolve().parent.parent.parent / ".env",
+    ]:
+        if _env_candidate.exists():
+            load_dotenv(_env_candidate)
+            break
+except ImportError:
+    pass  # Running on Streamlit Cloud — uses st.secrets instead
+
+# On Streamlit Cloud, secrets are in st.secrets, not os.environ
+# Bridge them so the rest of the code can use os.environ
+try:
+    import streamlit as _st_check
+    if hasattr(_st_check, "secrets"):
+        for _k, _v in _st_check.secrets.items():
+            if isinstance(_v, str):
+                os.environ.setdefault(_k, _v)
+except Exception:
+    pass
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
