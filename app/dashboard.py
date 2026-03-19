@@ -1385,41 +1385,108 @@ st.markdown("""
 # ---------------------------------------------------------------------------
 
 @st.cache_data(ttl=3600)
-def _get_distinct_values(table_name: str, field_name: str, limit: int = 500) -> list[str]:
-    """Get distinct values for a text/boolean field, cached aggressively."""
+def _get_cascaded_options(table_name: str, field_name: str, exclude_self: bool = True) -> list[tuple[str, int]]:
+    """Get distinct values + counts for a field, filtered by all OTHER active filters.
+
+    This makes filters cascade: selecting a court narrows judges to that court, etc.
+    Returns list of (code, count) tuples sorted by count descending.
+    """
     con = get_db()
     if con is None:
         return []
+
+    alias = TABLE_META.get(table_name, {}).get("alias", "t")
+    from_clause = f'"{table_name}" {alias}'
+    conditions = [f'{alias}."{field_name}" IS NOT NULL', f'{alias}."{field_name}" != \'\'']
+    joined_tables: set[str] = set()
+
+    # Apply all OTHER active filters (not the one we're getting options for)
+    for fk, fv in st.session_state.filters.items():
+        if exclude_self and fk == f"{table_name}.{field_name}":
+            continue
+        ftable, ffield = fk.split(".", 1)
+
+        # Determine alias for filter table
+        if ftable == table_name:
+            fa = alias
+        else:
+            if ftable not in joined_tables:
+                join_tmpl = TABLE_JOINS.get(ftable)
+                if not join_tmpl:
+                    continue
+                jt_alias = TABLE_META[ftable]["alias"]
+                from_clause += "\n        " + join_tmpl.format(alias=jt_alias, base=alias)
+                joined_tables.add(ftable)
+            fa = TABLE_META[ftable]["alias"]
+
+        needs_cast = ftable in ALL_VARCHAR_TABLES
+
+        if isinstance(fv, dict):
+            ft = fv.get("type", "date")
+            if ft == "date":
+                df = fv.get("from", "")
+                dt = fv.get("to", "")
+                if needs_cast:
+                    if df: conditions.append(f'TRY_CAST({fa}."{ffield}" AS TIMESTAMP) >= \'{df}\'')
+                    if dt: conditions.append(f'TRY_CAST({fa}."{ffield}" AS TIMESTAMP) <= \'{dt}\'')
+                else:
+                    if df: conditions.append(f'{fa}."{ffield}" >= \'{df}\'')
+                    if dt: conditions.append(f'{fa}."{ffield}" <= \'{dt}\'')
+            elif ft == "number":
+                if fv.get("min") is not None:
+                    conditions.append(f'TRY_CAST({fa}."{ffield}" AS DOUBLE) >= {fv["min"]}')
+                if fv.get("max") is not None:
+                    conditions.append(f'TRY_CAST({fa}."{ffield}" AS DOUBLE) <= {fv["max"]}')
+        elif isinstance(fv, list) and fv:
+            quoted = ", ".join(f"'{v}'" for v in fv)
+            conditions.append(f'{fa}."{ffield}" IN ({quoted})')
+
+    where = " AND ".join(conditions)
+    sql = f'SELECT {alias}."{field_name}" as code, COUNT(*) as cnt FROM {from_clause} WHERE {where} GROUP BY 1 ORDER BY cnt DESC LIMIT 500'
+
     try:
-        rows = con.execute(
-            f'SELECT DISTINCT "{field_name}" FROM "{table_name}" '
-            f'WHERE "{field_name}" IS NOT NULL '
-            f'ORDER BY "{field_name}" LIMIT {limit}'
-        ).fetchall()
-        return [str(r[0]).strip() for r in rows if r[0]]
+        rows = con.execute(sql).fetchall()
+        return [(str(r[0]).strip(), r[1]) for r in rows if r[0] and str(r[0]).strip()]
     except Exception:
         return []
 
 
 def _render_filter_widget(table_name: str, field_name: str, field_info: dict, filter_key: str):
-    """Render the appropriate Streamlit widget for a filter field."""
+    """Render the appropriate Streamlit widget for a filter field.
+
+    Uses cascading options: each filter's available values are constrained
+    by all other active filters.
+    """
     label = field_info["label"]
     ftype = field_info["type"]
     current = st.session_state.filters.get(filter_key, {})
 
     if ftype == "lookup":
         lookup_key = field_info.get("lookup")
-        options = LOOKUPS.get(lookup_key, {})
-        sorted_codes = sorted(options.keys(), key=lambda x: options.get(x, x))
-        # Current values: stored as list of codes
+        all_lookups = LOOKUPS.get(lookup_key, {})
+
+        # Get cascaded options (filtered by other selections)
+        cascaded = _get_cascaded_options(table_name, field_name)
+        available_codes = [code for code, _ in cascaded]
+        code_counts = {code: cnt for code, cnt in cascaded}
+
+        # Format function: show name + count
+        def fmt(x):
+            name = all_lookups.get(x, x)
+            cnt = code_counts.get(x)
+            if cnt is not None:
+                return f"{name} ({cnt:,})"
+            return name
+
+        # Current values
         current_vals = current.get("values", []) if isinstance(current, dict) else (current if isinstance(current, list) else [])
-        # Only keep valid codes
-        current_vals = [v for v in current_vals if v in options]
+        current_vals = [v for v in current_vals if v in available_codes]
+
         selected = st.multiselect(
             label,
-            options=sorted_codes,
+            options=available_codes,
             default=current_vals,
-            format_func=lambda x: options.get(x, x),
+            format_func=fmt,
             key=f"filt_{filter_key}",
         )
         if selected:
@@ -1475,14 +1542,22 @@ def _render_filter_widget(table_name: str, field_name: str, field_info: dict, fi
         elif filter_key in st.session_state.filters:
             del st.session_state.filters[filter_key]
 
-    else:  # text, boolean
-        options = _get_distinct_values(table_name, field_name)
+    else:  # text, boolean — also use cascaded options
+        cascaded = _get_cascaded_options(table_name, field_name)
+        available = [code for code, _ in cascaded]
+        code_counts = {code: cnt for code, cnt in cascaded}
+
+        def fmt_plain(x):
+            cnt = code_counts.get(x)
+            return f"{x} ({cnt:,})" if cnt else x
+
         current_vals = current.get("values", []) if isinstance(current, dict) else (current if isinstance(current, list) else [])
-        current_vals = [v for v in current_vals if v in options]
+        current_vals = [v for v in current_vals if v in available]
         selected = st.multiselect(
             label,
-            options=options,
+            options=available,
             default=current_vals,
+            format_func=fmt_plain,
             key=f"filt_{filter_key}",
         )
         if selected:
