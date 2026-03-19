@@ -2085,7 +2085,7 @@ if _filter_col is not None:
 
 # Render tabs + charts in left column
 with _chart_col:
-    _tab_names = [label for _, label in _active_table_tabs] + ["🔍 Filters", "AI Analyst"]
+    _tab_names = [label for _, label in _active_table_tabs] + ["🔍 Filters", "🤖 AI Assistant"]
     _tabs = st.tabs(_tab_names)
 
     # Render each active table tab
@@ -2142,204 +2142,396 @@ with _tabs[_explore_idx]:
             st.rerun()
 
 
-# ===== AI Analyst Tab ========================================================
+# ===== AI Data Assistant Tab ==================================================
+
+def _build_ai_system_prompt() -> str:
+    """Build a comprehensive system prompt with table/field metadata and lookup samples."""
+    # Table descriptions
+    table_section = "## Available Tables\n"
+    for tn, meta in TABLE_META.items():
+        table_section += f"- **{tn}** ({meta['label']}): {meta['description']}\n"
+
+    # Field metadata per table
+    field_section = "\n## Fields by Table\n"
+    for tn, fields in FIELD_META.items():
+        if tn not in TABLE_META:
+            continue
+        field_section += f"\n### {tn} ({TABLE_META[tn]['label']})\n"
+        for fname, fmeta in fields.items():
+            ftype = fmeta.get("type", "text")
+            lookup_key = fmeta.get("lookup", "")
+            field_section += f"- `{fname}` — {fmeta['label']} (type: {ftype}"
+            if lookup_key:
+                field_section += f", lookup: {lookup_key}"
+            field_section += ")\n"
+
+    # Sample lookup values (top 20 each for key lookups)
+    lookup_section = "\n## Lookup Code Mappings (sample — first 20 values)\n"
+    _key_lookups = ["nationality", "base_city", "judge", "case_type", "decision",
+                    "language", "custody", "charge", "application", "absentia",
+                    "sex", "lpr", "hearing_loc"]
+    for lk in _key_lookups:
+        vals = LOOKUPS.get(lk, {})
+        if not vals:
+            continue
+        sample = dict(list(vals.items())[:20])
+        lookup_section += f"\n**{lk}**:\n"
+        for code, desc in sample.items():
+            lookup_section += f"  {code} = {desc}\n"
+
+    # Current dashboard state
+    state_section = "\n## Current Dashboard State\n"
+    state_section += f"Active tables: {', '.join(st.session_state.active_tables) if st.session_state.active_tables else 'None'}\n"
+    current_filters = st.session_state.get("filters", {})
+    if current_filters:
+        state_section += "Current filters:\n"
+        for fk, fv in current_filters.items():
+            state_section += f"  {fk}: {fv}\n"
+    else:
+        state_section += "No filters currently applied.\n"
+
+    return f"""You are an AI Data Assistant for the EOIR Analytics Platform — an immigration court intelligence tool with 160M+ rows of data in DuckDB.
+
+You help users explore EOIR immigration court data by:
+1. Understanding their questions in plain English
+2. Suggesting dashboard filters they can apply with one click
+3. Writing and running SQL queries for custom analysis
+4. Generating charts and visualizations
+5. Asking clarifying questions when the request is ambiguous
+
+{table_section}
+{field_section}
+{lookup_section}
+{state_section}
+
+## Key Database Facts
+- CRITICAL: All columns in the 6 main tables (a_tblcase, b_tblproceeding, tbl_schedule, tbl_court_appln, tbl_court_motions, b_tblproceedcharges) were imported as VARCHAR. You MUST use TRY_CAST() for date and number comparisons.
+- To join b_tblproceeding to a_tblcase: TRY_CAST(p.IDNCASE AS BIGINT) = c.IDNCASE
+- For grant rates: DEC_CODE IN ('G', 'A') for grants; ('D', 'R', 'X') for denials
+- For decision lookups: p.DEC_CODE = d.strDecCode (optionally AND p.CASE_TYPE = d.strCaseType)
+- For nationality lookups: c.NAT = n.NAT_CODE
+
+## Response Format
+You MUST respond with natural language explanation AND a JSON block. The JSON block must be wrapped in ```json ... ``` markers.
+
+When suggesting filters the user can apply to the dashboard:
+```json
+{{
+  "filters": [
+    {{"table": "b_tblproceeding", "field": "CASE_TYPE", "values": ["ASY"], "label": "Case Type", "display": "Asylum Only Case"}},
+    {{"table": "a_tblcase", "field": "NAT", "values": ["MX"], "label": "Nationality", "display": "MEXICO"}},
+    {{"table": "b_tblproceeding", "field": "BASE_CITY_CODE", "values": ["SFR"], "label": "Court", "display": "San Francisco"}},
+    {{"table": "b_tblproceeding", "field": "COMP_DATE", "type": "date", "from": "2024-01-01", "to": "2024-12-31", "label": "Completion Date"}}
+  ],
+  "tables_needed": ["b_tblproceeding", "a_tblcase"],
+  "sql": "SELECT ... (optional SQL for a custom chart/analysis)",
+  "clarification": null
+}}
+```
+
+When you need clarification:
+```json
+{{
+  "filters": [],
+  "clarification": "When you say 'recent cases', do you mean the last 6 months, last year, or last 5 years?"
+}}
+```
+
+When providing analysis with SQL but no dashboard filters:
+```json
+{{
+  "filters": [],
+  "sql": "SELECT ...",
+  "clarification": null
+}}
+```
+
+## Rules
+1. ALWAYS include the JSON block in your response.
+2. For filter suggestions, use the exact field names and lookup codes from the metadata above.
+3. SQL must be DuckDB-compatible. ALWAYS JOIN lookup tables for human-readable names. Use COALESCE(lookup.name, raw_code) as fallback.
+4. ALWAYS use TRY_CAST for date/number columns in SQL.
+5. Keep SQL results concise (LIMIT 1000 max).
+6. After SQL, briefly explain what the query does and key findings to look for.
+7. Suggest follow-up questions when appropriate.
+8. If the user's request maps well to dashboard filters, prefer suggesting filters. If it requires aggregation/computation, use SQL.
+9. You can suggest BOTH filters and SQL in the same response.
+10. When a filter value maps to a lookup code, put the code in "values" and the human-readable name in "display"."""
+
+
+def _parse_ai_response(ai_text: str) -> dict:
+    """Parse AI response text to extract JSON block with filters/sql/clarification."""
+    result = {"text": ai_text, "filters": [], "tables_needed": [], "sql": None, "clarification": None}
+
+    # Find JSON block
+    json_match = re.search(r"```json\s*\n(.*?)```", ai_text, re.DOTALL)
+    if json_match:
+        try:
+            parsed = json.loads(json_match.group(1).strip())
+            result["filters"] = parsed.get("filters", [])
+            result["tables_needed"] = parsed.get("tables_needed", [])
+            result["sql"] = parsed.get("sql")
+            result["clarification"] = parsed.get("clarification")
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+        # Remove JSON block from display text
+        display_text = ai_text[:json_match.start()] + ai_text[json_match.end():]
+        result["text"] = display_text.strip()
+
+    # Also check for standalone SQL blocks (```sql ... ```)
+    if not result["sql"]:
+        sql_match = re.search(r"```sql\s*\n(.*?)```", ai_text, re.DOTALL)
+        if sql_match:
+            result["sql"] = sql_match.group(1).strip()
+
+    return result
+
+
+def _render_filter_suggestion_card(filters: list, tables_needed: list, msg_idx: int):
+    """Render a styled card showing suggested filters with Apply/Modify buttons."""
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #F0FDF4 0%, #ECFDF5 100%);
+                border: 1px solid #86EFAC; border-radius: 12px;
+                padding: 16px 20px; margin: 12px 0;">
+        <div style="font-weight: 700; color: #166534; margin-bottom: 10px; font-size: 0.95rem;">
+            Suggested Filters
+        </div>
+    """, unsafe_allow_html=True)
+
+    for f in filters:
+        if f.get("type") == "date":
+            st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;**{f['label']}**: {f.get('from', '')} to {f.get('to', '')}")
+        else:
+            display = f.get("display", ", ".join(f.get("values", [])))
+            st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;**{f['label']}**: {display}")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([2, 2, 4])
+    with col1:
+        if st.button("Apply These Filters", key=f"apply_ai_{msg_idx}", type="primary"):
+            _apply_ai_filters(filters, tables_needed)
+    with col2:
+        if st.button("Modify First", key=f"modify_ai_{msg_idx}"):
+            _apply_ai_filters(filters, tables_needed, open_panel=True)
+
+
+def _apply_ai_filters(filters: list, tables_needed: list, open_panel: bool = False):
+    """Apply AI-suggested filters to the dashboard state."""
+    # Activate required tables
+    for t in tables_needed:
+        if t in TABLE_META and t not in st.session_state.active_tables:
+            st.session_state.active_tables.append(t)
+
+    # Set filters
+    for f in filters:
+        filter_key = f"{f['table']}.{f['field']}"
+        if f.get("type") == "date":
+            st.session_state.filters[filter_key] = {
+                "type": "date",
+                "from": f.get("from", ""),
+                "to": f.get("to", ""),
+            }
+        elif f.get("type") == "number":
+            st.session_state.filters[filter_key] = {
+                "type": "number",
+                "min": f.get("min", 0),
+                "max": f.get("max", 0),
+            }
+        else:
+            st.session_state.filters[filter_key] = f.get("values", [])
+
+    if open_panel:
+        st.session_state.show_filter_modal = True
+
+    # Save config
+    config = st.session_state.dashboard_config
+    config["active_tables"] = list(st.session_state.active_tables)
+    _save_config(config)
+
+    st.rerun()
+
+
+def _auto_chart(result: pd.DataFrame) -> go.Figure | None:
+    """Auto-detect chart type from query results."""
+    if result.empty or len(result.columns) < 2:
+        return None
+
+    date_cols = [c for c in result.columns if any(w in c.lower() for w in ("date", "year", "month", "quarter"))]
+    num_cols = [c for c in result.columns if result[c].dtype in ("int64", "float64")]
+    str_cols = [c for c in result.columns if result[c].dtype == "object"]
+
+    if date_cols and num_cols:
+        fig = go.Figure()
+        for i, nc in enumerate(num_cols[:3]):
+            fig.add_trace(go.Scatter(
+                x=result[date_cols[0]], y=result[nc],
+                name=nc, mode="lines+markers",
+                line=dict(width=2.5, color=CHART_COLORS[i % len(CHART_COLORS)]),
+            ))
+        fig.update_layout(height=380, template=PLOTLY_TEMPLATE)
+        return fig
+    elif len(result) <= 30 and num_cols and str_cols:
+        fig = go.Figure(go.Bar(
+            x=result[str_cols[0]], y=result[num_cols[0]],
+            marker=dict(color=ACCENT_BLUE, cornerradius=6),
+        ))
+        fig.update_layout(height=380, template=PLOTLY_TEMPLATE)
+        return fig
+
+    return None
+
+
+def _call_ai_assistant(user_input: str) -> dict:
+    """Call Anthropic API and return parsed response."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return {"text": "ANTHROPIC_API_KEY not found in environment. Please set it in your .env file.", "filters": [], "sql": None}
+
+    try:
+        import anthropic
+        client = anthropic.Anthropic(api_key=api_key)
+
+        system_prompt = _build_ai_system_prompt()
+
+        # Build messages with history (last 20 messages, keep only text content)
+        history = st.session_state.ai_messages[-20:]
+        messages = [{"role": m["role"], "content": m["content"]} for m in history]
+
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=2000,
+            system=system_prompt,
+            messages=messages,
+        )
+
+        ai_text = response.content[0].text
+        return _parse_ai_response(ai_text)
+
+    except Exception as e:
+        return {"text": f"Error communicating with AI: {e}", "filters": [], "sql": None}
+
+
 with _tabs[_ai_idx]:
-    st.markdown('<p class="section-header">AI-Powered Analysis</p>', unsafe_allow_html=True)
-    st.caption("Ask questions in plain English. The AI writes SQL, runs it, and explains the results.")
+    # Chat CSS
+    st.markdown("""
+    <style>
+    .chat-user {
+        background: linear-gradient(135deg, #1E40AF, #3B82F6);
+        color: white;
+        padding: 12px 16px;
+        border-radius: 12px 12px 4px 12px;
+        margin: 8px 0;
+        max-width: 80%;
+        margin-left: auto;
+        font-size: 0.95rem;
+    }
+    .chat-ai {
+        background: #F1F5F9;
+        color: #1E293B;
+        padding: 12px 16px;
+        border-radius: 12px 12px 12px 4px;
+        margin: 8px 0;
+        max-width: 90%;
+        font-size: 0.95rem;
+        line-height: 1.6;
+    }
+    .chat-ai strong { color: #0F172A; }
+    .chat-ai code { background: #E2E8F0; padding: 1px 5px; border-radius: 4px; font-size: 0.88rem; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("### AI Data Assistant")
+    st.caption("Ask questions about the data in plain English. I'll suggest filters, generate charts, and run queries for you.")
+
+    # Suggested question chips
+    st.markdown("**Try asking:**")
+    _ai_suggestions = [
+        "Show me asylum cases from Mexico in 2024",
+        "Which courts have the most pending cases?",
+        "Compare grant rates for top 10 nationalities",
+        "What are the most common charges filed?",
+        "Show bond hearing outcomes for detained respondents",
+    ]
+    _chip_cols = st.columns(len(_ai_suggestions))
+    for _si, _sugg in enumerate(_ai_suggestions):
+        with _chip_cols[_si]:
+            if st.button(_sugg, key=f"sugg_{_si}", use_container_width=True):
+                st.session_state["ai_pending_question"] = _sugg
+
+    st.markdown("---")
 
     # Initialize chat history
     if "ai_messages" not in st.session_state:
         st.session_state.ai_messages = []
 
-    # Schema summary for AI
-    @st.cache_data(ttl=3600)
-    def get_schema_summary():
-        tables = get_table_list()
-        summary = []
-        for t in tables[:25]:
-            try:
-                cols = con.execute(f"""
-                    SELECT column_name, data_type
-                    FROM information_schema.columns
-                    WHERE table_name='{t}'
-                    ORDER BY ordinal_position
-                """).fetchall()
-                col_str = ", ".join(f"{c[0]} ({c[1]})" for c in cols)
-                summary.append(f"Table `{t}`: {col_str}")
-            except Exception:
-                pass
-        return "\n".join(summary)
-
-    schema = get_schema_summary()
-
-    # Suggested questions
-    suggestions = [
-        "What is the asylum grant rate by year since 2015?",
-        "Which courts have the highest denial rates?",
-        "Top 10 nationalities with most cases in 2024",
-        "Average wait time by court for completed cases",
-        "In absentia rate trend by quarter since 2020",
-        "Compare grant rates: New York vs Los Angeles",
-    ]
-
-    st.markdown("**Suggested Questions**")
-    chip_cols = st.columns(3)
-    for i, suggestion in enumerate(suggestions):
-        with chip_cols[i % 3]:
-            if st.button(suggestion, key=f"chip_{i}", use_container_width=True):
-                st.session_state["ai_pending_question"] = suggestion
-
-    st.markdown("")
-
     # Display chat history
-    for msg in st.session_state.ai_messages:
-        if msg["role"] == "user":
-            st.markdown(f'<div class="chat-user">{msg["content"]}</div>', unsafe_allow_html=True)
+    for _mi, _msg in enumerate(st.session_state.ai_messages):
+        if _msg["role"] == "user":
+            st.markdown(f'<div class="chat-user">{_msg["content"]}</div>', unsafe_allow_html=True)
         else:
-            st.markdown(f'<div class="chat-ai">{msg["content"]}</div>', unsafe_allow_html=True)
-            if "dataframe" in msg:
-                st.dataframe(msg["dataframe"], use_container_width=True, hide_index=True)
-            if "chart" in msg:
-                st.plotly_chart(msg["chart"], use_container_width=True)
+            st.markdown(f'<div class="chat-ai">{_msg["content"]}</div>', unsafe_allow_html=True)
+            # Render filter suggestion card if present
+            if _msg.get("filters"):
+                _render_filter_suggestion_card(_msg["filters"], _msg.get("tables_needed", []), msg_idx=_msg.get("idx", _mi))
+            # Render SQL results if present
+            if _msg.get("sql_result") is not None:
+                st.dataframe(_msg["sql_result"], use_container_width=True, hide_index=True)
+                st.caption(f"{len(_msg['sql_result']):,} rows returned")
+            if _msg.get("chart") is not None:
+                st.plotly_chart(_msg["chart"], use_container_width=True)
 
     # Chat input
-    user_question = st.chat_input("Ask a question about EOIR data...")
+    user_question = st.chat_input("Ask about the EOIR data...", key="ai_chat_input")
 
     # Also check for chip-triggered question
     if "ai_pending_question" in st.session_state:
         user_question = st.session_state.pop("ai_pending_question")
 
     if user_question:
+        # Add user message
         st.session_state.ai_messages.append({"role": "user", "content": user_question})
-        st.markdown(f'<div class="chat-user">{user_question}</div>', unsafe_allow_html=True)
 
-        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-        if not api_key:
-            err_msg = "ANTHROPIC_API_KEY not found in .env file."
-            st.session_state.ai_messages.append({"role": "assistant", "content": err_msg})
-            st.markdown(f'<div class="chat-ai">{err_msg}</div>', unsafe_allow_html=True)
-        else:
-            with st.spinner("Analyzing..."):
-                try:
-                    import anthropic
-                    client = anthropic.Anthropic(api_key=api_key)
+        # Call AI
+        with st.spinner("Thinking..."):
+            response = _call_ai_assistant(user_question)
 
-                    system_prompt = f"""You are a SQL analyst for immigration court (EOIR) data stored in DuckDB.
+        # Build assistant message
+        ai_msg = {
+            "role": "assistant",
+            "content": response["text"],
+            "idx": len(st.session_state.ai_messages),
+        }
 
-CRITICAL: All columns in the 6 main tables (a_tblcase, b_tblproceeding, tbl_schedule, tbl_court_appln, tbl_court_motions, b_tblproceedcharges) were imported as VARCHAR. You MUST use TRY_CAST() for date and number comparisons.
+        if response.get("filters"):
+            ai_msg["filters"] = response["filters"]
+            ai_msg["tables_needed"] = response.get("tables_needed", [])
 
-Key tables and relationships:
-- a_tblcase: Case master. PK: IDNCASE (BIGINT). Has NAT (nationality code), LANG (language code), CUSTODY, CASE_TYPE, C_BIRTHDATE (VARCHAR), Sex, DATE_OF_ENTRY (TIMESTAMP), LATEST_HEARING (TIMESTAMP), LPR.
-- b_tblproceeding: Main proceedings table. PK: IDNPROCEEDING (VARCHAR). IDNCASE links to a_tblcase (VARCHAR -- join with TRY_CAST(p.IDNCASE AS BIGINT) = c.IDNCASE). COMP_DATE (VARCHAR) is completion date, OSC_DATE (VARCHAR) is filing date, HEARING_DATE (VARCHAR). DEC_CODE (VARCHAR), IJ_CODE=judge, BASE_CITY_CODE=court, NAT, LANG, ABSENTIA, CASE_TYPE.
-- tbl_schedule: Hearing schedule. IDNSCHEDULE PK. IDNPROCEEDING, IDNCASE (both VARCHAR). ADJ_DATE (VARCHAR)=hearing date, OSC_DATE (VARCHAR)=filing date, ADJ_RSN=adjournment reason, CAL_TYPE, IJ_CODE.
-- tbl_court_appln: Applications filed. IDNPROCEEDING, IDNCASE. APPL_CODE=application type, APPL_DEC=decision.
-- b_tblproceedcharges: Charges. IDNPROCEEDING, IDNCASE. CHARGE=charge code.
-- tbl_court_motions: Motions. IDNPROCEEDING, IDNCASE. COMP_DATE, OSC_DATE, MOTION_RECD_DATE (all VARCHAR).
-- tbl_repsassigned: Attorney assignments. IDNCASE.
+        # Run SQL if provided
+        if response.get("sql"):
+            extracted_sql = response["sql"].strip()
+            if "limit" not in extracted_sql.lower():
+                extracted_sql += "\nLIMIT 1000"
+            sql_result = run_query(extracted_sql)
+            if not sql_result.empty:
+                ai_msg["sql_result"] = sql_result
+                # Auto-generate chart
+                chart = _auto_chart(sql_result)
+                if chart is not None:
+                    ai_msg["chart"] = chart
 
-Key lookup tables -- ALWAYS JOIN these for human-readable output:
-- tbllookupjudge: JUDGE_CODE -> JUDGE_NAME
-- tbllookupbasecity: BASE_CITY_CODE -> BASE_CITY_NAME
-- tbllookupnationality: NAT_CODE -> NAT_NAME
-- tbllookupcourtdecision: strDecCode -> strDecDescription (also strCaseType for precise match)
-- tbllanguage: strCode -> strDescription
-- tbllookupcharges: strCode -> strCodeDescription
-- tbladjournmentcodes: strcode -> strDesciption (typo in original data)
-- tbllookup_appln: strcode -> strdescription
-- tbllookuphloc: HEARING_LOC_CODE -> HEARING_LOC_NAME
-- tbllookupcasetype: strCode -> strDescription
-- tbllookupcustodystatus: strCode -> strDescription
-- tbllookupcal_type: strCalTypeCode -> strCalTypeDescription
-- tbllookupschedule_type: strCode -> strDescription
-- tbllookupmotiontype: strMotionCode -> strMotionDesc
-- tbllookupfiledby: strCode -> strDescription
-- tbllookupappealtype: strApplCode -> strApplDescription
-- tbllookupbiadecision: strCode -> strDescription
-- tbllookupcourtappdecisions: strCourtApplnDecCode -> strCourtApplnDecDesc
-- tbllookupnotice: Notice_Code -> Notice_Disp
+        st.session_state.ai_messages.append(ai_msg)
 
-Key relationships:
-- IDNCASE links a_tblcase -> b_tblproceeding, tbl_schedule, etc.
-- IDNPROCEEDING links b_tblproceeding -> tbl_schedule, tbl_court_motions, etc.
-- To join b_tblproceeding to a_tblcase: TRY_CAST(p.IDNCASE AS BIGINT) = c.IDNCASE
-- For grant rates, DEC_CODE IN ('G', 'A') for grants and ('D', 'R', 'X') for denials.
+        # Cap history at 20 messages
+        if len(st.session_state.ai_messages) > 20:
+            st.session_state.ai_messages = st.session_state.ai_messages[-20:]
 
-Full schema:
-{schema}
+        st.rerun()
 
-Rules:
-1. Write DuckDB-compatible SQL wrapped in ```sql ... ``` code blocks.
-2. ALWAYS JOIN lookup tables for human-readable names -- never show raw codes to the user. Use COALESCE(lookup.name, raw_code) as a fallback.
-3. ALWAYS use TRY_CAST for date/number columns.
-4. Keep results concise (LIMIT 1000 max).
-5. After SQL, briefly explain what the query does and key findings to look for.
-6. For decision lookups: p.DEC_CODE = d.strDecCode (optionally AND p.CASE_TYPE = d.strCaseType).
-7. For nationality lookups: c.NAT = n.NAT_CODE (where c is a_tblcase)."""
-
-                    # Build messages with history (last 10 messages for context)
-                    history = st.session_state.ai_messages[-10:]
-                    messages = [{"role": m["role"], "content": m["content"]} for m in history]
-
-                    response = client.messages.create(
-                        model="claude-sonnet-4-6",
-                        max_tokens=2000,
-                        system=system_prompt,
-                        messages=messages,
-                    )
-
-                    ai_text = response.content[0].text
-                    msg_data = {"role": "assistant", "content": ai_text}
-
-                    st.markdown(f'<div class="chat-ai">{ai_text}</div>', unsafe_allow_html=True)
-
-                    # Extract and run SQL
-                    sql_match = re.search(r"```sql\n(.*?)```", ai_text, re.DOTALL)
-                    if sql_match:
-                        extracted_sql = sql_match.group(1).strip()
-                        if "limit" not in extracted_sql.lower():
-                            extracted_sql += "\nLIMIT 1000"
-
-                        with st.spinner("Running query..."):
-                            result = run_query(extracted_sql)
-                            if not result.empty:
-                                st.dataframe(result, use_container_width=True, hide_index=True)
-                                st.caption(f"{len(result):,} rows")
-                                msg_data["dataframe"] = result
-
-                                # Auto-chart
-                                date_cols = [c for c in result.columns if any(w in c.lower() for w in ("date", "year", "month", "quarter"))]
-                                num_cols = [c for c in result.columns if result[c].dtype in ("int64", "float64")]
-                                if date_cols and num_cols:
-                                    fig = go.Figure()
-                                    for i, nc in enumerate(num_cols[:3]):
-                                        fig.add_trace(go.Scatter(
-                                            x=result[date_cols[0]], y=result[nc],
-                                            name=nc, mode="lines+markers",
-                                            line=dict(width=2.5, color=CHART_COLORS[i % len(CHART_COLORS)]),
-                                        ))
-                                    fig.update_layout(height=380, template=PLOTLY_TEMPLATE)
-                                    st.plotly_chart(fig, use_container_width=True)
-                                    msg_data["chart"] = fig
-                                elif len(result) <= 30 and num_cols:
-                                    str_cols = [c for c in result.columns if result[c].dtype == "object"]
-                                    if str_cols:
-                                        fig = go.Figure(go.Bar(
-                                            x=result[str_cols[0]], y=result[num_cols[0]],
-                                            marker=dict(color=ACCENT_BLUE, cornerradius=6),
-                                        ))
-                                        fig.update_layout(height=380, template=PLOTLY_TEMPLATE)
-                                        st.plotly_chart(fig, use_container_width=True)
-                                        msg_data["chart"] = fig
-
-                    st.session_state.ai_messages.append(msg_data)
-
-                except Exception as e:
-                    err_msg = f"Error: {e}"
-                    st.session_state.ai_messages.append({"role": "assistant", "content": err_msg})
-                    st.error(err_msg)
-
-    # Clear chat button
+    # Clear conversation button
     if st.session_state.ai_messages:
+        st.markdown("")
         if st.button("Clear Conversation", key="clear_chat"):
             st.session_state.ai_messages = []
             st.rerun()
