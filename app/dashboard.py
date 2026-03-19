@@ -2135,8 +2135,23 @@ def _render_filter_widget(table_name: str, field_name: str, field_info: dict, fi
         current_vals = current.get("values", []) if isinstance(current, dict) else (current if isinstance(current, list) else [])
         current_vals = [v for v in current_vals if v in available_codes]
 
+        # Highlight active filters
+        if current_vals:
+            resolved = [all_lookups.get(v, v) for v in current_vals[:3]]
+            display_text = ", ".join(resolved)
+            if len(current_vals) > 3:
+                display_text += f" +{len(current_vals) - 3} more"
+            st.markdown(
+                f'<div style="background:#EFF6FF; border:1px solid #BFDBFE; border-radius:8px; '
+                f'padding:6px 12px; margin-bottom:4px;">'
+                f'<span style="font-weight:700; color:#1E40AF;">🔍 {label}</span> '
+                f'<span style="color:#3B82F6; font-size:0.82rem;">{display_text}</span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
         selected = st.multiselect(
-            label,
+            label if not current_vals else f"{label} ✓",
             options=available_codes,
             default=current_vals,
             format_func=fmt,
@@ -2150,6 +2165,7 @@ def _render_filter_widget(table_name: str, field_name: str, field_info: dict, fi
     elif ftype == "date":
         current_from_str = current.get("from", "") if isinstance(current, dict) else ""
         current_to_str = current.get("to", "") if isinstance(current, dict) else ""
+        is_active = bool(current_from_str or current_to_str)
         try:
             from_val = datetime.strptime(current_from_str, "%Y-%m-%d").date() if current_from_str else None
         except ValueError:
@@ -2159,19 +2175,86 @@ def _render_filter_widget(table_name: str, field_name: str, field_info: dict, fi
         except ValueError:
             to_val = None
 
-        st.markdown(f"**{label}**")
+        # Highlighted header when active
+        if is_active:
+            from_display = from_val.strftime("%m/%d/%Y") if from_val else "—"
+            to_display = to_val.strftime("%m/%d/%Y") if to_val else "—"
+            st.markdown(
+                f'<div style="background:#EFF6FF; border:1px solid #BFDBFE; border-radius:8px; '
+                f'padding:8px 12px; margin-bottom:8px;">'
+                f'<span style="font-weight:700; color:#1E40AF;">📅 {label}</span> '
+                f'<span style="color:#3B82F6; font-size:0.85rem;">{from_display} → {to_display}</span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(f"**📅 {label}**")
+
+        # Date inputs
         c1, c2 = st.columns(2)
         with c1:
-            new_from = st.date_input("From", value=from_val, key=f"filt_{ctx}{filter_key}_from")
+            new_from = st.date_input(
+                "From", value=from_val, key=f"filt_{ctx}{filter_key}_from",
+                format="MM/DD/YYYY",
+            )
         with c2:
-            new_to = st.date_input("To", value=to_val, key=f"filt_{ctx}{filter_key}_to")
+            new_to = st.date_input(
+                "To", value=to_val, key=f"filt_{ctx}{filter_key}_to",
+                format="MM/DD/YYYY",
+            )
+
+        # Quick preset buttons
+        qc1, qc2, qc3, qc4, qc5 = st.columns(5)
+        with qc1:
+            if st.button("1Y", key=f"filt_{ctx}{filter_key}_q1y", use_container_width=True, help="Last 1 year"):
+                st.session_state.filters[filter_key] = {
+                    "type": "date",
+                    "from": (date.today() - timedelta(days=365)).strftime("%Y-%m-%d"),
+                    "to": date.today().strftime("%Y-%m-%d"),
+                }
+                st.rerun()
+        with qc2:
+            if st.button("3Y", key=f"filt_{ctx}{filter_key}_q3y", use_container_width=True, help="Last 3 years"):
+                st.session_state.filters[filter_key] = {
+                    "type": "date",
+                    "from": (date.today() - timedelta(days=1095)).strftime("%Y-%m-%d"),
+                    "to": date.today().strftime("%Y-%m-%d"),
+                }
+                st.rerun()
+        with qc3:
+            if st.button("5Y", key=f"filt_{ctx}{filter_key}_q5y", use_container_width=True, help="Last 5 years"):
+                st.session_state.filters[filter_key] = {
+                    "type": "date",
+                    "from": (date.today() - timedelta(days=1825)).strftime("%Y-%m-%d"),
+                    "to": date.today().strftime("%Y-%m-%d"),
+                }
+                st.rerun()
+        with qc4:
+            if st.button("YTD", key=f"filt_{ctx}{filter_key}_ytd", use_container_width=True, help="Year to date"):
+                st.session_state.filters[filter_key] = {
+                    "type": "date",
+                    "from": f"{date.today().year}-01-01",
+                    "to": date.today().strftime("%Y-%m-%d"),
+                }
+                st.rerun()
+        with qc5:
+            if is_active:
+                if st.button("✕", key=f"filt_{ctx}{filter_key}_clear", use_container_width=True, help="Clear date filter"):
+                    if filter_key in st.session_state.filters:
+                        del st.session_state.filters[filter_key]
+                    st.rerun()
+            else:
+                if st.button("All", key=f"filt_{ctx}{filter_key}_all", use_container_width=True, help="All time"):
+                    pass  # No filter = all time
+
+        # Save from date inputs
         if new_from or new_to:
             st.session_state.filters[filter_key] = {
                 "type": "date",
                 "from": new_from.strftime("%Y-%m-%d") if new_from else "",
                 "to": new_to.strftime("%Y-%m-%d") if new_to else "",
             }
-        elif filter_key in st.session_state.filters:
+        elif filter_key in st.session_state.filters and not is_active:
             del st.session_state.filters[filter_key]
 
     elif ftype == "number":
@@ -2339,7 +2422,16 @@ def _render_active_filters_bar():
             if ft == "date":
                 from_str = filter_value.get("from", "")
                 to_str = filter_value.get("to", "")
-                display = f"{from_str} \u2192 {to_str}" if from_str and to_str else (from_str or to_str)
+                # Convert to MM/DD/YYYY for display
+                try:
+                    from_display = datetime.strptime(from_str, "%Y-%m-%d").strftime("%m/%d/%Y") if from_str else ""
+                except ValueError:
+                    from_display = from_str
+                try:
+                    to_display = datetime.strptime(to_str, "%Y-%m-%d").strftime("%m/%d/%Y") if to_str else ""
+                except ValueError:
+                    to_display = to_str
+                display = f"{from_display} → {to_display}" if from_display and to_display else (from_display or to_display)
             elif ft == "number":
                 nmin = filter_value.get("min", 0)
                 nmax = filter_value.get("max", 0)
