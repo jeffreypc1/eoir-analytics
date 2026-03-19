@@ -315,15 +315,16 @@ section[data-testid="stSidebar"] .stButton > button:hover {{
     max-width: 100% !important;
 }}
 
-/* -- Filter popout card -- */
-.filter-popout {{
-    position: relative;
+/* -- Filter modal card -- */
+.filter-modal {{
     background: white;
     border-radius: 16px;
-    padding: 24px;
-    margin-bottom: 16px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+    padding: 32px;
+    margin-bottom: 24px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.15);
     border: 1px solid #E2E8F0;
+    max-height: 70vh;
+    overflow-y: auto;
     animation: slideDown 0.2s ease;
 }}
 @keyframes slideDown {{
@@ -343,13 +344,18 @@ section[data-testid="stSidebar"] .stButton > button:hover {{
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    background: #EFF6FF;
-    border: 1px solid #BFDBFE;
-    color: #1E40AF;
-    padding: 4px 12px;
+    padding: 6px 14px;
     border-radius: 20px;
     font-size: 0.8rem;
     font-weight: 500;
+}}
+.filter-pill-table {{
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.7;
+    margin-right: 2px;
 }}
 .filter-pill-remove {{
     cursor: pointer;
@@ -364,6 +370,54 @@ section[data-testid="stSidebar"] .stButton > button:hover {{
     text-transform: uppercase;
     letter-spacing: 0.05em;
     margin-right: 4px;
+}}
+
+/* -- Per-table pill colors -- */
+.filter-pill-cases {{ background: #EFF6FF; border: 1px solid #BFDBFE; color: #1E40AF; }}
+.filter-pill-proceedings {{ background: #F5F3FF; border: 1px solid #DDD6FE; color: #5B21B6; }}
+.filter-pill-hearings {{ background: #ECFDF5; border: 1px solid #A7F3D0; color: #065F46; }}
+.filter-pill-applications {{ background: #FFFBEB; border: 1px solid #FDE68A; color: #92400E; }}
+.filter-pill-charges {{ background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B; }}
+.filter-pill-motions {{ background: #F0FDFA; border: 1px solid #99F6E4; color: #115E59; }}
+.filter-pill-bonds {{ background: #FFF7ED; border: 1px solid #FED7AA; color: #9A3412; }}
+.filter-pill-attorneys {{ background: #EFF6FF; border: 1px solid #BFDBFE; color: #1E40AF; }}
+.filter-pill-custody {{ background: #FAF5FF; border: 1px solid #E9D5FF; color: #6B21A8; }}
+.filter-pill-appeals {{ background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B; }}
+.filter-pill-default {{ background: #F1F5F9; border: 1px solid #CBD5E1; color: #334155; }}
+
+/* -- Landing page -- */
+.landing-page {{
+    text-align: center;
+    padding: 80px 40px;
+    max-width: 600px;
+    margin: 0 auto;
+}}
+.landing-icon {{
+    font-size: 3.5rem;
+    margin-bottom: 12px;
+}}
+.landing-title {{
+    font-size: 2rem;
+    font-weight: 800;
+    color: {TEXT_PRIMARY};
+    margin: 0 0 12px 0;
+    letter-spacing: -0.02em;
+}}
+.landing-subtitle {{
+    font-size: 1.05rem;
+    color: {TEXT_SECONDARY};
+    margin: 0 0 24px 0;
+    line-height: 1.6;
+}}
+.landing-stat {{
+    display: inline-block;
+    background: linear-gradient(135deg, {PRIMARY} 0%, #1E293B 100%);
+    color: #F8FAFC;
+    padding: 8px 20px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
 }}
 
 /* -- Sidebar table & field tree styling -- */
@@ -912,8 +966,8 @@ if "active_tables" not in st.session_state:
     st.session_state.active_tables = list(st.session_state.dashboard_config.get(
         "active_tables", []))
 
-if "active_popout" not in st.session_state:
-    st.session_state.active_popout = None  # e.g. "a_tblcase.NAT"
+if "show_filter_modal" not in st.session_state:
+    st.session_state.show_filter_modal = False
 
 if "filters" not in st.session_state:
     st.session_state.filters = {}  # e.g. {"a_tblcase.NAT": ["MX","GT"], "b_tblproceeding.COMP_DATE": {"from":"2020-01-01","to":"2026-03-18"}}
@@ -1060,7 +1114,7 @@ st.sidebar.divider()
 
 st.sidebar.markdown('<div class="sidebar-section-label">DATA SOURCES</div>', unsafe_allow_html=True)
 
-# Render each table with checkbox and fields
+# Render each table as a simple checkbox
 _row_count_cache = {}
 for table_name, meta in TABLE_META.items():
     if table_name not in _row_count_cache:
@@ -1068,7 +1122,7 @@ for table_name, meta in TABLE_META.items():
     row_count = _row_count_cache[table_name]
 
     is_active = table_name in st.session_state.active_tables
-    label_text = f"{meta['label']} -- {_fmt_number(row_count)} rows"
+    label_text = f"{meta['label']} \u2014 {_fmt_number(row_count)} rows"
 
     new_active = st.sidebar.checkbox(
         label_text,
@@ -1082,9 +1136,6 @@ for table_name, meta in TABLE_META.items():
             st.session_state.active_tables.append(table_name)
         else:
             st.session_state.active_tables.remove(table_name)
-            # Close any popout from this table
-            if st.session_state.active_popout and st.session_state.active_popout.startswith(f"{table_name}."):
-                st.session_state.active_popout = None
             # Remove filters for this table
             keys_to_remove = [k for k in st.session_state.filters if k.startswith(f"{table_name}.")]
             for k in keys_to_remove:
@@ -1094,84 +1145,57 @@ for table_name, meta in TABLE_META.items():
         _save_config(st.session_state.dashboard_config)
         st.rerun()
 
-    # Show fields if table is active
-    if new_active:
-        fields = FIELD_META.get(table_name, {})
-        hidden_fields = _get_hidden_fields(table_name)
-
-        for field_name, field_meta in fields.items():
-            # Skip hidden fields (unless admin mode)
-            if field_name in hidden_fields and not st.session_state.admin_mode:
-                continue
-
-            ftype = field_meta.get("type", "text")
-            label = field_meta.get("label", field_name)
-
-            # All fields are filterable — icon depends on type
-            if ftype == "date":
-                icon = "\U0001f4c5"   # calendar
-            elif ftype == "number":
-                icon = "\U0001f522"   # numbers
-            else:
-                icon = "\U0001f50d"   # magnifying glass
-
-            # Build the sidebar row
-            filter_key = f"{table_name}.{field_name}"
-            has_active_filter = filter_key in st.session_state.filters
-
-            # Admin mode: show hide button
-            if st.session_state.admin_mode:
-                is_hidden = field_name in hidden_fields
-                admin_cols = st.sidebar.columns([5, 1])
-                with admin_cols[0]:
-                    btn_label = f"  {icon} {label}" + (" *" if has_active_filter else "")
-                    if is_hidden:
-                        btn_label = f"  ~{label}~ (hidden)"
-                    if st.button(btn_label, key=f"sb_field_{table_name}_{field_name}",
-                                 use_container_width=True):
-                        if not is_hidden:
-                            st.session_state.active_popout = filter_key
-                            st.rerun()
-                with admin_cols[1]:
-                    if is_hidden:
-                        if st.button("+", key=f"sb_unhide_{table_name}_{field_name}"):
-                            hidden_fields.remove(field_name)
-                            st.session_state.dashboard_config.setdefault("hidden_fields", {})[table_name] = hidden_fields
-                            _save_config(st.session_state.dashboard_config)
-                            st.rerun()
-                    else:
-                        if st.button("x", key=f"sb_hide_{table_name}_{field_name}"):
-                            hidden_fields.append(field_name)
-                            st.session_state.dashboard_config.setdefault("hidden_fields", {})[table_name] = hidden_fields
-                            _save_config(st.session_state.dashboard_config)
-                            st.rerun()
-            else:
-                # Normal mode — all fields get a filter button
-                btn_label = f"  {icon} {label}" + (" *" if has_active_filter else "")
-                if st.sidebar.button(btn_label, key=f"sb_field_{table_name}_{field_name}",
-                                     use_container_width=True):
-                    # Toggle popout
-                    if st.session_state.active_popout == filter_key:
-                        st.session_state.active_popout = None
-                    else:
-                        st.session_state.active_popout = filter_key
-                    st.rerun()
-
+# -- Filters button (only when tables are active) --
+if st.session_state.active_tables:
+    active_filter_count = len(st.session_state.filters)
+    filter_btn_label = f"\U0001f50d Filters ({active_filter_count} active)" if active_filter_count else "\U0001f50d Filters"
+    if st.sidebar.button(filter_btn_label, key="sb_open_filters", use_container_width=True):
+        st.session_state.show_filter_modal = not st.session_state.show_filter_modal
+        st.rerun()
 
 st.sidebar.divider()
 
 # -- Admin toggle at bottom of sidebar --
-admin_on = st.sidebar.toggle("Admin Mode", value=st.session_state.admin_mode, key="sb_admin_toggle")
+admin_on = st.sidebar.toggle("\u2699\ufe0f Admin Mode", value=st.session_state.admin_mode, key="sb_admin_toggle")
 if admin_on != st.session_state.admin_mode:
     st.session_state.admin_mode = admin_on
     st.rerun()
 
-# -- Filter summary in sidebar --
-active_filter_count = len(st.session_state.filters)
+# -- Admin: field visibility management --
+if st.session_state.admin_mode and st.session_state.active_tables:
+    st.sidebar.markdown('<div class="sidebar-section-label">FIELD VISIBILITY</div>', unsafe_allow_html=True)
+    for table_name in st.session_state.active_tables:
+        if table_name not in TABLE_META:
+            continue
+        meta = TABLE_META[table_name]
+        fields = FIELD_META.get(table_name, {})
+        hidden_fields = _get_hidden_fields(table_name)
+        st.sidebar.markdown(f"**{meta['label']}**")
+        for field_name, field_info in fields.items():
+            is_hidden = field_name in hidden_fields
+            label = field_info.get("label", field_name)
+            admin_cols = st.sidebar.columns([5, 1])
+            with admin_cols[0]:
+                display_label = f"~~{label}~~ (hidden)" if is_hidden else label
+                st.sidebar.markdown(f"<span style='font-size:0.78rem;'>{display_label}</span>", unsafe_allow_html=True)
+            with admin_cols[1]:
+                if is_hidden:
+                    if st.sidebar.button("+", key=f"sb_unhide_{table_name}_{field_name}"):
+                        hidden_fields.remove(field_name)
+                        st.session_state.dashboard_config.setdefault("hidden_fields", {})[table_name] = hidden_fields
+                        _save_config(st.session_state.dashboard_config)
+                        st.rerun()
+                else:
+                    if st.sidebar.button("x", key=f"sb_hide_{table_name}_{field_name}"):
+                        hidden_fields.append(field_name)
+                        st.session_state.dashboard_config.setdefault("hidden_fields", {})[table_name] = hidden_fields
+                        _save_config(st.session_state.dashboard_config)
+                        st.rerun()
+
+# -- Footer stats --
 st.sidebar.markdown(
     '<div style="text-align:center; font-size:0.65rem; color:#475569; padding:8px 0;">'
-    f'Active filters: {active_filter_count}<br>'
-    '160M+ records &middot; 89 tables &middot; DuckDB'
+    '160M+ records &middot; 10 tables &middot; DuckDB'
     '</div>',
     unsafe_allow_html=True,
 )
@@ -1338,201 +1362,211 @@ st.markdown("""
 
 
 # ---------------------------------------------------------------------------
-# Filter Popout (above tabs, in main area)
+# Filter Modal (in main area)
 # ---------------------------------------------------------------------------
 
-def _render_filter_popout():
-    """Render the filter popout card if one is active."""
-    popout_key = st.session_state.active_popout
-    if not popout_key:
-        return
+@st.cache_data(ttl=3600)
+def _get_distinct_values(table_name: str, field_name: str, limit: int = 500) -> list[str]:
+    """Get distinct values for a text/boolean field, cached aggressively."""
+    con = get_db()
+    if con is None:
+        return []
+    try:
+        rows = con.execute(
+            f'SELECT DISTINCT "{field_name}" FROM "{table_name}" '
+            f'WHERE "{field_name}" IS NOT NULL '
+            f'ORDER BY "{field_name}" LIMIT {limit}'
+        ).fetchall()
+        return [str(r[0]).strip() for r in rows if r[0]]
+    except Exception:
+        return []
 
-    parts = popout_key.split(".", 1)
-    if len(parts) != 2:
-        return
-    table_name, field_name = parts
-    field_meta = FIELD_META.get(table_name, {}).get(field_name, {})
-    if not field_meta:
-        st.session_state.active_popout = None
-        return
 
-    label = field_meta.get("label", field_name)
-    ftype = field_meta.get("type", "text")
+def _render_filter_widget(table_name: str, field_name: str, field_info: dict, filter_key: str):
+    """Render the appropriate Streamlit widget for a filter field."""
+    label = field_info["label"]
+    ftype = field_info["type"]
+    current = st.session_state.filters.get(filter_key, {})
 
-    st.markdown('<div class="filter-popout">', unsafe_allow_html=True)
+    if ftype == "lookup":
+        lookup_key = field_info.get("lookup")
+        options = LOOKUPS.get(lookup_key, {})
+        sorted_codes = sorted(options.keys(), key=lambda x: options.get(x, x))
+        # Current values: stored as list of codes
+        current_vals = current.get("values", []) if isinstance(current, dict) else (current if isinstance(current, list) else [])
+        # Only keep valid codes
+        current_vals = [v for v in current_vals if v in options]
+        selected = st.multiselect(
+            label,
+            options=sorted_codes,
+            default=current_vals,
+            format_func=lambda x: options.get(x, x),
+            key=f"filt_{filter_key}",
+        )
+        if selected:
+            st.session_state.filters[filter_key] = selected
+        elif filter_key in st.session_state.filters:
+            del st.session_state.filters[filter_key]
 
-    if ftype == "date":
-        # ----- DATE RANGE POPOUT -----
-        header_cols = st.columns([6, 1])
-        with header_cols[0]:
-            st.markdown(f"**\U0001f4c5 {label}**")
-        with header_cols[1]:
-            if st.button("Close", key="popout_close"):
-                st.session_state.active_popout = None
-                st.rerun()
-
-        # Get current date filter values
-        current = st.session_state.filters.get(popout_key, {})
-        current_from = current.get("from", "2020-01-01") if isinstance(current, dict) else "2020-01-01"
-        current_to = current.get("to", date.today().strftime("%Y-%m-%d")) if isinstance(current, dict) else date.today().strftime("%Y-%m-%d")
-
+    elif ftype == "date":
+        current_from_str = current.get("from", "") if isinstance(current, dict) else ""
+        current_to_str = current.get("to", "") if isinstance(current, dict) else ""
         try:
-            from_val = datetime.strptime(current_from, "%Y-%m-%d").date()
+            from_val = datetime.strptime(current_from_str, "%Y-%m-%d").date() if current_from_str else None
         except ValueError:
-            from_val = date(2020, 1, 1)
+            from_val = None
         try:
-            to_val = datetime.strptime(current_to, "%Y-%m-%d").date()
+            to_val = datetime.strptime(current_to_str, "%Y-%m-%d").date() if current_to_str else None
         except ValueError:
-            to_val = date.today()
+            to_val = None
 
-        d_cols = st.columns([2, 2, 3])
-        with d_cols[0]:
-            new_from = st.date_input("From", value=from_val, key=f"popout_date_from_{popout_key}")
-        with d_cols[1]:
-            new_to = st.date_input("To", value=to_val, key=f"popout_date_to_{popout_key}")
-
-        # Quick presets
-        with d_cols[2]:
-            st.markdown("**Quick Range**")
-            qc1, qc2, qc3, qc4 = st.columns(4)
-            with qc1:
-                if st.button("Last Year", key=f"popout_q1_{popout_key}"):
-                    new_from = date(date.today().year - 1, 1, 1)
-                    new_to = date.today()
-            with qc2:
-                if st.button("Last 3Y", key=f"popout_q3_{popout_key}"):
-                    new_from = date(date.today().year - 3, 1, 1)
-                    new_to = date.today()
-            with qc3:
-                if st.button("Last 5Y", key=f"popout_q5_{popout_key}"):
-                    new_from = date(date.today().year - 5, 1, 1)
-                    new_to = date.today()
-            with qc4:
-                if st.button("All Time", key=f"popout_qall_{popout_key}"):
-                    new_from = date(2000, 1, 1)
-                    new_to = date.today()
-
-        apply_cols = st.columns([4, 1])
-        with apply_cols[1]:
-            if st.button("Apply Date Range", key=f"popout_apply_{popout_key}", type="primary"):
-                st.session_state.filters[popout_key] = {
-                    "type": "date",
-                    "from": new_from.strftime("%Y-%m-%d"),
-                    "to": new_to.strftime("%Y-%m-%d"),
-                }
-                st.session_state.active_popout = None
-                st.rerun()
+        st.markdown(f"**{label}**")
+        c1, c2 = st.columns(2)
+        with c1:
+            new_from = st.date_input("From", value=from_val, key=f"filt_{filter_key}_from")
+        with c2:
+            new_to = st.date_input("To", value=to_val, key=f"filt_{filter_key}_to")
+        if new_from or new_to:
+            st.session_state.filters[filter_key] = {
+                "type": "date",
+                "from": new_from.strftime("%Y-%m-%d") if new_from else "",
+                "to": new_to.strftime("%Y-%m-%d") if new_to else "",
+            }
+        elif filter_key in st.session_state.filters:
+            del st.session_state.filters[filter_key]
 
     elif ftype == "number":
-        # ----- NUMBER RANGE POPOUT -----
-        header_cols = st.columns([6, 1])
-        with header_cols[0]:
-            st.markdown(f"**\U0001f522 {label}**")
-        with header_cols[1]:
-            if st.button("Close", key="popout_close"):
-                st.session_state.active_popout = None
-                st.rerun()
+        current_min = current.get("min") if isinstance(current, dict) else None
+        current_max = current.get("max") if isinstance(current, dict) else None
 
-        # Get current number filter values
-        current = st.session_state.filters.get(popout_key, {})
-        current_min = current.get("min", 0) if isinstance(current, dict) else 0
-        current_max = current.get("max", 1000000) if isinstance(current, dict) else 1000000
+        st.markdown(f"**{label}**")
+        c1, c2 = st.columns(2)
+        with c1:
+            min_val = st.number_input(
+                "Min", value=int(current_min) if current_min is not None else 0,
+                key=f"filt_{filter_key}_min",
+            )
+        with c2:
+            max_val = st.number_input(
+                "Max", value=int(current_max) if current_max is not None else 1000000,
+                key=f"filt_{filter_key}_max",
+            )
+        if min_val != 0 or max_val != 1000000:
+            st.session_state.filters[filter_key] = {"type": "number", "min": min_val, "max": max_val}
+        elif filter_key in st.session_state.filters:
+            del st.session_state.filters[filter_key]
 
-        n_cols = st.columns(2)
-        with n_cols[0]:
-            new_min = st.number_input("Min", value=int(current_min), key=f"popout_num_min_{popout_key}")
-        with n_cols[1]:
-            new_max = st.number_input("Max", value=int(current_max), key=f"popout_num_max_{popout_key}")
+    else:  # text, boolean
+        options = _get_distinct_values(table_name, field_name)
+        current_vals = current.get("values", []) if isinstance(current, dict) else (current if isinstance(current, list) else [])
+        current_vals = [v for v in current_vals if v in options]
+        selected = st.multiselect(
+            label,
+            options=options,
+            default=current_vals,
+            key=f"filt_{filter_key}",
+        )
+        if selected:
+            st.session_state.filters[filter_key] = selected
+        elif filter_key in st.session_state.filters:
+            del st.session_state.filters[filter_key]
 
-        apply_cols = st.columns([4, 1])
-        with apply_cols[1]:
-            if st.button("Apply Range", key=f"popout_apply_{popout_key}", type="primary"):
-                st.session_state.filters[popout_key] = {
-                    "type": "number",
-                    "min": new_min,
-                    "max": new_max,
-                }
-                st.session_state.active_popout = None
-                st.rerun()
 
-    else:
-        # ----- LOOKUP / TEXT / BOOLEAN POPOUT -----
-        header_cols = st.columns([6, 1])
-        with header_cols[0]:
-            st.markdown(f"**\U0001f50d {label}**")
-        with header_cols[1]:
-            if st.button("Close", key="popout_close"):
-                st.session_state.active_popout = None
-                st.rerun()
+def _render_filter_modal():
+    """Render the filter modal overlay in the main area."""
+    if not st.session_state.get("show_filter_modal"):
+        return
 
-        # Get value counts
-        lookup_key = field_meta.get("lookup")
-        value_counts = get_field_value_counts(table_name, field_name, lookup_key)
+    st.markdown('<div class="filter-modal">', unsafe_allow_html=True)
 
-        # Current selections
-        current_selections = set(st.session_state.filters.get(popout_key, []))
+    # Header row
+    col_title, col_close = st.columns([6, 1])
+    with col_title:
+        st.markdown("### \U0001f50d Filters")
+    with col_close:
+        if st.button("\u2715 Close", key="close_filters"):
+            st.session_state.show_filter_modal = False
+            st.rerun()
 
-        # Search box
-        search = st.text_input("Search...", key=f"popout_search_{popout_key}", placeholder="Type to filter options...")
+    # Search box to find fields
+    field_search = st.text_input(
+        "Search fields...", key="filter_field_search",
+        placeholder="Type to find a field..."
+    )
+    field_search_lower = field_search.lower().strip() if field_search else ""
 
-        # Filter by search
-        if search:
-            search_lower = search.lower()
-            value_counts = [(c, d, n) for c, d, n in value_counts
-                            if search_lower in d.lower() or search_lower in c.lower()]
+    # For each active table, show its filterable fields
+    for table_name in st.session_state.active_tables:
+        if table_name not in TABLE_META:
+            continue
+        meta = TABLE_META[table_name]
+        fields = FIELD_META.get(table_name, {})
+        hidden_fields = _get_hidden_fields(table_name)
 
-        total_options = len(value_counts)
+        # Build visible field list
+        field_list = [
+            (k, v) for k, v in fields.items()
+            if k not in hidden_fields
+        ]
 
-        # Select All / Clear All
-        btn_cols = st.columns([1, 1, 4])
-        with btn_cols[0]:
-            if st.button("Select All", key=f"popout_selall_{popout_key}"):
-                current_selections = {c for c, d, n in value_counts}
-        with btn_cols[1]:
-            if st.button("Clear All", key=f"popout_clrall_{popout_key}"):
-                current_selections = set()
+        # Apply search filter
+        if field_search_lower:
+            field_list = [
+                (k, v) for k, v in field_list
+                if field_search_lower in v.get("label", k).lower()
+                or field_search_lower in k.lower()
+            ]
 
-        # Checkbox grid -- 2 columns
-        col1, col2 = st.columns(2)
-        new_selections = set()
-        for i, (code, display, count) in enumerate(value_counts):
-            count_str = f"{count:,}"
-            target_col = col1 if i % 2 == 0 else col2
-            with target_col:
-                checked = st.checkbox(
-                    f"{display} ({count_str})",
-                    value=code in current_selections,
-                    key=f"popout_cb_{popout_key}_{i}_{code}",
-                )
-                if checked:
-                    new_selections.add(code)
+        if not field_list:
+            continue
 
-        if total_options == 500:
-            st.caption("Showing first 500 of many values. Use search to narrow down.")
-        else:
-            st.caption(f"{total_options} total options")
+        with st.expander(f"{meta.get('label', table_name)}", expanded=True):
+            # Render fields in 2-column grid
+            for i in range(0, len(field_list), 2):
+                cols = st.columns(2)
+                for j, col in enumerate(cols):
+                    if i + j < len(field_list):
+                        field_name, field_info = field_list[i + j]
+                        filter_key = f"{table_name}.{field_name}"
+                        with col:
+                            _render_filter_widget(table_name, field_name, field_info, filter_key)
 
-        # Apply button
-        apply_cols = st.columns([4, 1])
-        with apply_cols[1]:
-            if st.button("Apply Filter", key=f"popout_apply_{popout_key}", type="primary"):
-                if new_selections:
-                    st.session_state.filters[popout_key] = sorted(new_selections)
-                else:
-                    st.session_state.filters.pop(popout_key, None)
-                st.session_state.active_popout = None
-                st.rerun()
+    # Footer buttons
+    col_apply, col_clear, _ = st.columns([1, 1, 4])
+    with col_apply:
+        if st.button("Apply Filters", type="primary", key="apply_filters_btn"):
+            st.session_state.show_filter_modal = False
+            st.rerun()
+    with col_clear:
+        if st.button("Clear All", key="clear_all_modal_btn"):
+            st.session_state.filters = {}
+            st.session_state.show_filter_modal = False
+            st.rerun()
 
     st.markdown('</div>', unsafe_allow_html=True)
 
 
-# Render popout
-_render_filter_popout()
+# Render filter modal
+_render_filter_modal()
 
 
 # ---------------------------------------------------------------------------
 # Active Filters Bar
 # ---------------------------------------------------------------------------
+
+_TABLE_PILL_CLASS = {
+    "a_tblcase": "cases",
+    "b_tblproceeding": "proceedings",
+    "tbl_schedule": "hearings",
+    "tbl_court_appln": "applications",
+    "b_tblproceedcharges": "charges",
+    "tbl_court_motions": "motions",
+    "d_tblassociatedbond": "bonds",
+    "tbl_repsassigned": "attorneys",
+    "tbl_custodyhistory": "custody",
+    "tblappeal": "appeals",
+}
+
 
 def _render_active_filters_bar():
     """Render dismissible filter pills above the tabs."""
@@ -1543,23 +1577,28 @@ def _render_active_filters_bar():
 
     for filter_key, filter_value in st.session_state.filters.items():
         table_name, field_name = filter_key.split(".", 1)
+        table_meta = TABLE_META.get(table_name, {})
         field_meta = FIELD_META.get(table_name, {}).get(field_name, {})
         label = field_meta.get("label", field_name)
+        table_label = table_meta.get("label", table_name)
         lookup_key = field_meta.get("lookup")
         lookup = LOOKUPS.get(lookup_key, {}) if lookup_key else {}
+        pill_class = _TABLE_PILL_CLASS.get(table_name, "default")
 
         if isinstance(filter_value, dict):
             ft = filter_value.get("type", "date")
             if ft == "date":
-                display = f"{filter_value.get('from','')} to {filter_value.get('to','')}"
+                from_str = filter_value.get("from", "")
+                to_str = filter_value.get("to", "")
+                display = f"{from_str} \u2192 {to_str}" if from_str and to_str else (from_str or to_str)
             elif ft == "number":
                 nmin = filter_value.get("min", 0)
                 nmax = filter_value.get("max", 0)
-                display = f"${nmin:,.0f} - ${nmax:,.0f}"
+                display = f"{nmin:,.0f} \u2013 {nmax:,.0f}"
             else:
                 display = str(filter_value)
         elif isinstance(filter_value, list):
-            # Categorical -- show up to 3 values
+            # Categorical -- show up to 3 resolved values
             display_vals = [lookup.get(v, v) for v in filter_value[:3]]
             display = ", ".join(display_vals)
             if len(filter_value) > 3:
@@ -1568,7 +1607,8 @@ def _render_active_filters_bar():
             display = str(filter_value)
 
         pills_html += (
-            f'<span class="filter-pill">'
+            f'<span class="filter-pill filter-pill-{pill_class}">'
+            f'<span class="filter-pill-table">{table_label}</span> '
             f'{label}: {display}'
             f'</span>'
         )
@@ -1579,16 +1619,19 @@ def _render_active_filters_bar():
     # Render remove buttons using Streamlit (can't use HTML onclick)
     filter_keys = list(st.session_state.filters.keys())
     if filter_keys:
-        btn_cols = st.columns(len(filter_keys) + 1)
+        # Cap columns to avoid too-narrow buttons
+        max_cols = min(len(filter_keys) + 1, 6)
+        btn_cols = st.columns(max_cols)
         for i, fk in enumerate(filter_keys):
+            col_idx = i % (max_cols - 1)
             table_name, field_name = fk.split(".", 1)
             field_meta = FIELD_META.get(table_name, {}).get(field_name, {})
             label = field_meta.get("label", field_name)
-            with btn_cols[i]:
-                if st.button(f"Remove {label}", key=f"remove_filter_{fk}"):
+            with btn_cols[col_idx]:
+                if st.button(f"\u2715 {label}", key=f"remove_filter_{fk}"):
                     del st.session_state.filters[fk]
                     st.rerun()
-        with btn_cols[-1]:
+        with btn_cols[max_cols - 1]:
             if st.button("Clear All", key="clear_all_filters"):
                 st.session_state.filters = {}
                 st.rerun()
@@ -1859,17 +1902,29 @@ def render_table_analysis(table_name: str):
 
 
 # ---------------------------------------------------------------------------
-# Dynamic Tabs
+# Dynamic Tabs / Landing Page
 # ---------------------------------------------------------------------------
 
 # Build tab list: one per active table + Data Explorer + AI Analyst
 _active_table_tabs = [(tn, TABLE_META[tn]["label"]) for tn in st.session_state.active_tables
                       if tn in TABLE_META]
+
+if not _active_table_tabs:
+    # ---- Clean Landing Page ----
+    st.markdown("""
+    <div class="landing-page">
+        <div class="landing-icon">\u2696\ufe0f</div>
+        <div class="landing-title">EOIR Analytics</div>
+        <div class="landing-subtitle">
+            Select data sources from the sidebar to begin<br>
+            exploring immigration court data.
+        </div>
+        <div class="landing-stat">160M+ records across 10 tables</div>
+    </div>
+    """, unsafe_allow_html=True)
+    st.stop()
+
 _tab_names = [label for _, label in _active_table_tabs] + ["Data Explorer", "AI Analyst"]
-
-if not _tab_names:
-    _tab_names = ["Data Explorer", "AI Analyst"]
-
 _tabs = st.tabs(_tab_names)
 
 # Render each active table tab
@@ -1877,7 +1932,7 @@ for i, (tn, label) in enumerate(_active_table_tabs):
     with _tabs[i]:
         render_table_analysis(tn)
 
-# Data Explorer and AI Analyst are always at the end
+# Data Explorer and AI Analyst are at the end
 _explore_idx = len(_active_table_tabs)
 _ai_idx = _explore_idx + 1
 
