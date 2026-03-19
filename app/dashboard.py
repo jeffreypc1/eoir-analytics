@@ -1691,16 +1691,19 @@ def _run_table_kpi(table_name: str, alias: str, where_clause: str, from_clause: 
 @st.cache_data(ttl=300)
 def _run_time_series(table_name: str, alias: str, field: str, where_clause: str,
                      from_clause: str) -> pd.DataFrame:
-    """Generate monthly time series for a date field."""
+    """Generate monthly time series for a date field. Caps at 6 years in the future."""
     needs_cast = _needs_try_cast(table_name)
+    max_future = (date.today().year + 6)
     if needs_cast:
         date_expr = f'DATE_TRUNC(\'month\', TRY_CAST({alias}."{field}" AS TIMESTAMP))'
+        date_cap = f'TRY_CAST({alias}."{field}" AS TIMESTAMP) <= \'{max_future}-12-31\''
     else:
         date_expr = f'DATE_TRUNC(\'month\', {alias}."{field}")'
+        date_cap = f'{alias}."{field}" <= \'{max_future}-12-31\''
     sql = f"""
         SELECT {date_expr} as month, COUNT(*) as count
         FROM {from_clause}
-        WHERE {where_clause} AND {alias}."{field}" IS NOT NULL
+        WHERE {where_clause} AND {alias}."{field}" IS NOT NULL AND {date_cap}
         GROUP BY 1 ORDER BY 1
     """
     return run_query(sql)
@@ -1746,12 +1749,17 @@ def _run_rate_over_time(table_name: str, alias: str, field: str, date_field: str
         date_expr = f'DATE_TRUNC(\'quarter\', TRY_CAST({alias}."{date_field}" AS TIMESTAMP))'
     else:
         date_expr = f'DATE_TRUNC(\'quarter\', {alias}."{date_field}")'
+    max_future = (date.today().year + 6)
+    if needs_cast:
+        date_cap = f'TRY_CAST({alias}."{date_field}" AS TIMESTAMP) <= \'{max_future}-12-31\''
+    else:
+        date_cap = f'{alias}."{date_field}" <= \'{max_future}-12-31\''
     sql = f"""
         SELECT {date_expr} as quarter,
                ROUND(100.0 * SUM(CASE WHEN {alias}."{field}" = '{rate_value}' THEN 1 ELSE 0 END) / COUNT(*), 1) as rate,
                COUNT(*) as total
         FROM {from_clause}
-        WHERE {where_clause} AND {alias}."{date_field}" IS NOT NULL
+        WHERE {where_clause} AND {alias}."{date_field}" IS NOT NULL AND {date_cap}
         GROUP BY 1 ORDER BY 1
     """
     return run_query(sql)
@@ -1963,7 +1971,7 @@ if _filter_col is not None:
 
 # Render tabs + charts in left column
 with _chart_col:
-    _tab_names = [label for _, label in _active_table_tabs] + ["Data Explorer", "AI Analyst"]
+    _tab_names = [label for _, label in _active_table_tabs] + ["🔍 Filters", "AI Analyst"]
     _tabs = st.tabs(_tab_names)
 
     # Render each active table tab
@@ -1971,157 +1979,53 @@ with _chart_col:
         with _tabs[i]:
             render_table_analysis(tn)
 
-    # Data Explorer and AI Analyst are at the end
+    # Filters and AI Analyst tabs are at the end
     _explore_idx = len(_active_table_tabs)
     _ai_idx = _explore_idx + 1
 
 
-# ===== Data Explorer Tab =====================================================
+# ===== Filters Tab ============================================================
 with _tabs[_explore_idx]:
-    st.markdown('<p class="section-header">Custom SQL Explorer</p>', unsafe_allow_html=True)
-    st.caption("Query the EOIR database directly. Results capped at 5,000 rows.")
+    st.markdown('<p class="section-header">Filters & Data Controls</p>', unsafe_allow_html=True)
+    st.caption("Select filters to narrow your analysis. Changes apply to all charts immediately.")
 
-    # Schema reference
-    with st.expander("Schema Reference", expanded=False):
-        tables = get_table_list()
-        main_tables = ["a_tblcase", "b_tblproceeding", "tbl_schedule", "tbl_court_appln",
-                       "tbl_court_motions", "b_tblproceedcharges", "tbl_repsassigned"]
-        lookup_tables = sorted([t for t in tables if t.startswith("tbllookup") or t in ("tbladjournmentcodes", "tbllanguage", "tbldeccode")])
+    # Active filters summary
+    _active_count = len(st.session_state.filters)
+    if _active_count:
+        st.success(f"**{_active_count} active filter{'s' if _active_count != 1 else ''}** applied across all charts.")
+    else:
+        st.info("No filters active. Select values below to filter the data.")
 
-        st.markdown("**Main Tables**")
-        for t in main_tables:
-            try:
-                cols = con.execute(f"SELECT column_name FROM information_schema.columns WHERE table_name='{t}' ORDER BY ordinal_position").fetchall()
-                col_names = ", ".join(c[0] for c in cols)
-                st.markdown(f"`{t}`: {col_names}")
-            except Exception:
-                st.markdown(f"`{t}`")
+    # Render filter widgets for each active table
+    for _ft_name in st.session_state.active_tables:
+        if _ft_name not in FIELD_META:
+            continue
+        _ft_meta = TABLE_META.get(_ft_name, {})
+        _ft_fields = FIELD_META[_ft_name]
+        _hidden = st.session_state.dashboard_config.get("hidden_fields", {}).get(_ft_name, [])
 
-        st.markdown("**Lookup Tables**")
-        for t in lookup_tables:
-            try:
-                cols = con.execute(f"SELECT column_name FROM information_schema.columns WHERE table_name='{t}' ORDER BY ordinal_position").fetchall()
-                col_names = ", ".join(c[0] for c in cols)
-                st.markdown(f"`{t}`: {col_names}")
-            except Exception:
-                st.markdown(f"`{t}`")
+        with st.expander(f"**{_ft_meta.get('label', _ft_name)}** — {_ft_meta.get('description', '')}", expanded=True):
+            # Render fields in 2-column grid
+            _ft_visible = [(k, v) for k, v in _ft_fields.items()
+                           if k not in _hidden and k not in ("IDNCASE", "IDNPROCEEDING", "IDNSCHEDULE",
+                                                              "IDNMOTION", "IDNASSOCBOND", "IDNREPSASSIGNED",
+                                                              "IDNPROCEEDINGAPPLN", "IDNPRCDCHG", "IDNCUSTODY",
+                                                              "idnAppeal")]
+            for _fi in range(0, len(_ft_visible), 2):
+                _fcols = st.columns(2)
+                for _fj, _fcol in enumerate(_fcols):
+                    if _fi + _fj < len(_ft_visible):
+                        _fname, _finfo = _ft_visible[_fi + _fj]
+                        _fkey = f"{_ft_name}.{_fname}"
+                        with _fcol:
+                            _render_filter_widget(_ft_name, _fname, _finfo, _fkey)
 
-    # Example queries as buttons
-    st.markdown("**Quick Queries**")
-    example_queries = {
-        "Grant Rate by Year": """SELECT
-    DATE_TRUNC('year', TRY_CAST(p.COMP_DATE AS TIMESTAMP)) as year,
-    COUNT(*) as total,
-    SUM(CASE WHEN p.DEC_CODE IN ('G','A') THEN 1 ELSE 0 END) as grants,
-    ROUND(100.0 * SUM(CASE WHEN p.DEC_CODE IN ('G','A') THEN 1 ELSE 0 END) / COUNT(*), 1) as grant_rate
-FROM b_tblproceeding p
-WHERE TRY_CAST(p.COMP_DATE AS TIMESTAMP) >= '2015-01-01' AND p.COMP_DATE IS NOT NULL
-GROUP BY 1 ORDER BY 1""",
-        "Top 20 Judges by Caseload": """SELECT j.JUDGE_NAME, l.BASE_CITY_NAME as court, COUNT(*) as cases,
-    ROUND(100.0 * SUM(CASE WHEN p.DEC_CODE IN ('G','A') THEN 1 ELSE 0 END)
-        / NULLIF(SUM(CASE WHEN p.DEC_CODE IN ('G','A','D','R','X') THEN 1 ELSE 0 END), 0), 1) as grant_rate
-FROM b_tblproceeding p
-LEFT JOIN tbllookupjudge j ON p.IJ_CODE = j.JUDGE_CODE
-LEFT JOIN tbllookupbasecity l ON p.BASE_CITY_CODE = l.BASE_CITY_CODE
-WHERE TRY_CAST(p.COMP_DATE AS TIMESTAMP) >= '2020-01-01' AND p.COMP_DATE IS NOT NULL
-    AND j.JUDGE_NAME IS NOT NULL AND j.JUDGE_NAME != '<All Judges>'
-GROUP BY 1, 2 HAVING COUNT(*) >= 100
-ORDER BY cases DESC LIMIT 20""",
-        "Asylum Cases by Nationality": """SELECT n.NAT_NAME as nationality, COUNT(*) as cases,
-    ROUND(100.0 * SUM(CASE WHEN p.DEC_CODE IN ('G','A') THEN 1 ELSE 0 END)
-        / NULLIF(SUM(CASE WHEN p.DEC_CODE IN ('G','A','D','R','X') THEN 1 ELSE 0 END), 0), 1) as grant_rate
-FROM b_tblproceeding p
-JOIN a_tblcase c ON TRY_CAST(p.IDNCASE AS BIGINT) = c.IDNCASE
-LEFT JOIN tbllookupnationality n ON c.NAT = n.NAT_CODE
-WHERE p.CASE_TYPE = 'ASY'
-    AND TRY_CAST(p.COMP_DATE AS TIMESTAMP) >= '2020-01-01' AND p.COMP_DATE IS NOT NULL
-    AND n.NAT_NAME IS NOT NULL
-GROUP BY 1 ORDER BY cases DESC LIMIT 20""",
-        "Court Hearing Volumes (Monthly)": """SELECT
-    DATE_TRUNC('month', TRY_CAST(s.ADJ_DATE AS TIMESTAMP)) as month,
-    COUNT(*) as hearings
-FROM tbl_schedule s
-WHERE TRY_CAST(s.ADJ_DATE AS TIMESTAMP) >= '2023-01-01'
-    AND TRY_CAST(s.ADJ_DATE AS TIMESTAMP) <= '2024-12-31'
-    AND s.ADJ_DATE IS NOT NULL
-GROUP BY 1 ORDER BY 1""",
-    }
-
-    btn_cols = st.columns(len(example_queries))
-    for i, (name, query) in enumerate(example_queries.items()):
-        with btn_cols[i]:
-            if st.button(name, key=f"ex_{i}", use_container_width=True):
-                st.session_state["explore_sql_input"] = query
-
-    # SQL editor
-    default_sql = st.session_state.get("explore_sql_input", list(example_queries.values())[0])
-    sql = st.text_area("SQL Query", value=default_sql, height=200, key="explore_sql_area")
-
-    run_col, resolve_col, _ = st.columns([1, 2, 3])
-    with run_col:
-        run_clicked = st.button("Run Query", type="primary", key="run_explore")
-    with resolve_col:
-        resolve_codes_on = st.checkbox("Resolve lookup codes", value=True, key="resolve_codes_toggle")
-
-    def resolve_codes(df: pd.DataFrame) -> pd.DataFrame:
-        """Replace code columns with human-readable names."""
-        code_mappings = {
-            "NAT": "nationality",
-            "LANG": "language",
-            "BASE_CITY_CODE": "base_city",
-            "IJ_CODE": "judge",
-            "DEC_CODE": "decision",
-            "CASE_TYPE": "case_type",
-            "CHARGE": "charge",
-            "ADJ_RSN": "adjournment",
-            "APPL_CODE": "application",
-            "HEARING_LOC_CODE": "hearing_loc",
-            "CUSTODY": "custody",
-            "CAL_TYPE": "cal_type",
-            "MOTION_TYPE": "motion_type",
-        }
-        df = df.copy()
-        for col, lookup_key in code_mappings.items():
-            if col in df.columns and lookup_key in LOOKUPS:
-                df[col] = df[col].map(
-                    lambda x, lk=lookup_key: LOOKUPS[lk].get(str(x).strip(), x) if pd.notna(x) else x
-                )
-        return df
-
-    if run_clicked:
-        safe_sql = sql.strip().rstrip(";")
-        if "limit" not in safe_sql.lower():
-            safe_sql += "\nLIMIT 5000"
-
-        with st.spinner("Executing..."):
-            result = run_query(safe_sql)
-            if not result.empty:
-                display_result = resolve_codes(result) if resolve_codes_on else result
-                st.dataframe(display_result, use_container_width=True, hide_index=True)
-                st.caption(f"{len(result):,} rows returned")
-
-                # Auto-chart
-                date_cols = [c for c in result.columns if any(w in c.lower() for w in ("date", "year", "month", "quarter"))]
-                num_cols = [c for c in result.columns if result[c].dtype in ("int64", "float64", "int32", "float32")]
-                if date_cols and num_cols:
-                    fig = go.Figure()
-                    for i, nc in enumerate(num_cols[:3]):
-                        fig.add_trace(go.Scatter(
-                            x=result[date_cols[0]], y=result[nc],
-                            name=nc, mode="lines+markers",
-                            line=dict(width=2.5, color=CHART_COLORS[i % len(CHART_COLORS)]),
-                        ))
-                    fig.update_layout(height=380, template=PLOTLY_TEMPLATE)
-                    st.plotly_chart(fig, use_container_width=True, key="explore_chart")
-                elif len(result) <= 50 and num_cols:
-                    str_cols = [c for c in result.columns if result[c].dtype == "object"]
-                    if str_cols:
-                        fig = go.Figure(go.Bar(
-                            x=result[str_cols[0]], y=result[num_cols[0]],
-                            marker=dict(color=ACCENT_BLUE, cornerradius=6),
-                        ))
-                        fig.update_layout(height=380, template=PLOTLY_TEMPLATE)
-                        st.plotly_chart(fig, use_container_width=True, key="explore_bar")
+    # Clear all button
+    if _active_count:
+        st.divider()
+        if st.button("Clear All Filters", key="filters_tab_clear"):
+            st.session_state.filters = {}
+            st.rerun()
 
 
 # ===== AI Analyst Tab ========================================================
