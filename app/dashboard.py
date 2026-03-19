@@ -1373,6 +1373,278 @@ for _fk, _fv in st.session_state.filters.items():
 
 
 # ---------------------------------------------------------------------------
+# AI utility functions (must be defined before the AI input bar)
+# ---------------------------------------------------------------------------
+
+
+def _build_ai_system_prompt() -> str:
+    """Build a comprehensive system prompt with table/field metadata and lookup samples."""
+    # Table descriptions
+    table_section = "## Available Tables\n"
+    for tn, meta in TABLE_META.items():
+        table_section += f"- **{tn}** ({meta['label']}): {meta['description']}\n"
+
+    # Field metadata per table
+    field_section = "\n## Fields by Table\n"
+    for tn, fields in FIELD_META.items():
+        if tn not in TABLE_META:
+            continue
+        field_section += f"\n### {tn} ({TABLE_META[tn]['label']})\n"
+        for fname, fmeta in fields.items():
+            ftype = fmeta.get("type", "text")
+            lookup_key = fmeta.get("lookup", "")
+            field_section += f"- `{fname}` — {fmeta['label']} (type: {ftype}"
+            if lookup_key:
+                field_section += f", lookup: {lookup_key}"
+            field_section += ")\n"
+
+    # Sample lookup values (top 20 each for key lookups)
+    lookup_section = "\n## Lookup Code Mappings (sample — first 20 values)\n"
+    _key_lookups = ["nationality", "base_city", "judge", "case_type", "decision",
+                    "language", "custody", "charge", "application", "absentia",
+                    "sex", "lpr", "hearing_loc"]
+    for lk in _key_lookups:
+        vals = LOOKUPS.get(lk, {})
+        if not vals:
+            continue
+        sample = dict(list(vals.items())[:20])
+        lookup_section += f"\n**{lk}**:\n"
+        for code, desc in sample.items():
+            lookup_section += f"  {code} = {desc}\n"
+
+    # Current dashboard state
+    state_section = "\n## Current Dashboard State\n"
+    state_section += f"Active tables: {', '.join(st.session_state.active_tables) if st.session_state.active_tables else 'None'}\n"
+    current_filters = st.session_state.get("filters", {})
+    if current_filters:
+        state_section += "Current filters:\n"
+        for fk, fv in current_filters.items():
+            state_section += f"  {fk}: {fv}\n"
+    else:
+        state_section += "No filters currently applied.\n"
+
+    return f"""You are an AI Data Assistant for the EOIR Analytics Platform — an immigration court intelligence tool with 160M+ rows of data in DuckDB.
+
+You help users explore EOIR immigration court data by:
+1. Understanding their questions in plain English
+2. Suggesting dashboard filters they can apply with one click
+3. Writing and running SQL queries for custom analysis
+4. Generating charts and visualizations
+5. Asking clarifying questions when the request is ambiguous
+
+{table_section}
+{field_section}
+{lookup_section}
+{state_section}
+
+## Key Database Facts
+- CRITICAL: All columns in the 6 main tables (a_tblcase, b_tblproceeding, tbl_schedule, tbl_court_appln, tbl_court_motions, b_tblproceedcharges) were imported as VARCHAR. You MUST use TRY_CAST() for date and number comparisons.
+- To join b_tblproceeding to a_tblcase: TRY_CAST(p.IDNCASE AS BIGINT) = c.IDNCASE
+- For grant rates: DEC_CODE IN ('G', 'A') for grants; ('D', 'R', 'X') for denials
+- For decision lookups: p.DEC_CODE = d.strDecCode (optionally AND p.CASE_TYPE = d.strCaseType)
+- For nationality lookups: c.NAT = n.NAT_CODE
+
+## Response Format
+You MUST respond with natural language explanation AND a JSON block. The JSON block must be wrapped in ```json ... ``` markers.
+
+When suggesting filters the user can apply to the dashboard:
+```json
+{{
+  "filters": [
+    {{"table": "b_tblproceeding", "field": "CASE_TYPE", "values": ["ASY"], "label": "Case Type", "display": "Asylum Only Case"}},
+    {{"table": "a_tblcase", "field": "NAT", "values": ["MX"], "label": "Nationality", "display": "MEXICO"}},
+    {{"table": "b_tblproceeding", "field": "BASE_CITY_CODE", "values": ["SFR"], "label": "Court", "display": "San Francisco"}},
+    {{"table": "b_tblproceeding", "field": "COMP_DATE", "type": "date", "from": "2024-01-01", "to": "2024-12-31", "label": "Completion Date"}}
+  ],
+  "tables_needed": ["b_tblproceeding", "a_tblcase"],
+  "sql": "SELECT ... (optional SQL for a custom chart/analysis)",
+  "clarification": null
+}}
+```
+
+When you need clarification:
+```json
+{{
+  "filters": [],
+  "clarification": "When you say 'recent cases', do you mean the last 6 months, last year, or last 5 years?"
+}}
+```
+
+When providing analysis with SQL but no dashboard filters:
+```json
+{{
+  "filters": [],
+  "sql": "SELECT ...",
+  "clarification": null
+}}
+```
+
+## Rules
+1. ALWAYS include the JSON block in your response.
+2. For filter suggestions, use the exact field names and lookup codes from the metadata above.
+3. SQL must be DuckDB-compatible. ALWAYS JOIN lookup tables for human-readable names. Use COALESCE(lookup.name, raw_code) as fallback.
+4. ALWAYS use TRY_CAST for date/number columns in SQL.
+5. Keep SQL results concise (LIMIT 1000 max).
+6. After SQL, briefly explain what the query does and key findings to look for.
+7. Suggest follow-up questions when appropriate.
+8. If the user's request maps well to dashboard filters, prefer suggesting filters. If it requires aggregation/computation, use SQL.
+9. You can suggest BOTH filters and SQL in the same response.
+10. When a filter value maps to a lookup code, put the code in "values" and the human-readable name in "display"."""
+
+
+def _parse_ai_response(ai_text: str) -> dict:
+    """Parse AI response text to extract JSON block with filters/sql/clarification."""
+    result = {"text": ai_text, "filters": [], "tables_needed": [], "sql": None, "clarification": None}
+
+    # Find JSON block
+    json_match = re.search(r"```json\s*\n(.*?)```", ai_text, re.DOTALL)
+    if json_match:
+        try:
+            parsed = json.loads(json_match.group(1).strip())
+            result["filters"] = parsed.get("filters", [])
+            result["tables_needed"] = parsed.get("tables_needed", [])
+            result["sql"] = parsed.get("sql")
+            result["clarification"] = parsed.get("clarification")
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+        # Remove JSON block from display text
+        display_text = ai_text[:json_match.start()] + ai_text[json_match.end():]
+        result["text"] = display_text.strip()
+
+    # Also check for standalone SQL blocks (```sql ... ```)
+    if not result["sql"]:
+        sql_match = re.search(r"```sql\s*\n(.*?)```", ai_text, re.DOTALL)
+        if sql_match:
+            result["sql"] = sql_match.group(1).strip()
+
+    return result
+
+
+def _render_filter_suggestion_card(filters: list, tables_needed: list, msg_idx: int):
+    """Render a styled card showing suggested filters with Apply/Modify buttons."""
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #F0FDF4 0%, #ECFDF5 100%);
+                border: 1px solid #86EFAC; border-radius: 12px;
+                padding: 16px 20px; margin: 12px 0;">
+        <div style="font-weight: 700; color: #166534; margin-bottom: 10px; font-size: 0.95rem;">
+            Suggested Filters
+        </div>
+    """, unsafe_allow_html=True)
+
+    for f in filters:
+        if f.get("type") == "date":
+            st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;**{f['label']}**: {f.get('from', '')} to {f.get('to', '')}")
+        else:
+            display = f.get("display", ", ".join(f.get("values", [])))
+            st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;**{f['label']}**: {display}")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([2, 2, 4])
+    with col1:
+        if st.button("Apply These Filters", key=f"apply_ai_{msg_idx}", type="primary"):
+            _apply_ai_filters(filters, tables_needed)
+    with col2:
+        if st.button("Modify First", key=f"modify_ai_{msg_idx}"):
+            _apply_ai_filters(filters, tables_needed, open_panel=True)
+
+
+def _apply_ai_filters(filters: list, tables_needed: list, open_panel: bool = False):
+    """Apply AI-suggested filters to the dashboard state."""
+    # Activate required tables
+    for t in tables_needed:
+        if t in TABLE_META and t not in st.session_state.active_tables:
+            st.session_state.active_tables.append(t)
+
+    # Set filters
+    for f in filters:
+        filter_key = f"{f['table']}.{f['field']}"
+        if f.get("type") == "date":
+            st.session_state.filters[filter_key] = {
+                "type": "date",
+                "from": f.get("from", ""),
+                "to": f.get("to", ""),
+            }
+        elif f.get("type") == "number":
+            st.session_state.filters[filter_key] = {
+                "type": "number",
+                "min": f.get("min", 0),
+                "max": f.get("max", 0),
+            }
+        else:
+            st.session_state.filters[filter_key] = f.get("values", [])
+
+    if open_panel:
+        st.session_state.show_filter_modal = True
+
+    # Save config
+    config = st.session_state.dashboard_config
+    config["active_tables"] = list(st.session_state.active_tables)
+    _save_config(config)
+
+    st.rerun()
+
+
+def _auto_chart(result: pd.DataFrame) -> go.Figure | None:
+    """Auto-detect chart type from query results."""
+    if result.empty or len(result.columns) < 2:
+        return None
+
+    date_cols = [c for c in result.columns if any(w in c.lower() for w in ("date", "year", "month", "quarter"))]
+    num_cols = [c for c in result.columns if result[c].dtype in ("int64", "float64")]
+    str_cols = [c for c in result.columns if result[c].dtype == "object"]
+
+    if date_cols and num_cols:
+        fig = go.Figure()
+        for i, nc in enumerate(num_cols[:3]):
+            fig.add_trace(go.Scatter(
+                x=result[date_cols[0]], y=result[nc],
+                name=nc, mode="lines+markers",
+                line=dict(width=2.5, color=CHART_COLORS[i % len(CHART_COLORS)]),
+            ))
+        fig.update_layout(height=380, template=PLOTLY_TEMPLATE)
+        return fig
+    elif len(result) <= 30 and num_cols and str_cols:
+        fig = go.Figure(go.Bar(
+            x=result[str_cols[0]], y=result[num_cols[0]],
+            marker=dict(color=ACCENT_BLUE, cornerradius=6),
+        ))
+        fig.update_layout(height=380, template=PLOTLY_TEMPLATE)
+        return fig
+
+    return None
+
+
+def _call_ai_assistant(user_input: str) -> dict:
+    """Call Anthropic API and return parsed response (single question/answer)."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return {"text": "ANTHROPIC_API_KEY not found in environment. Please set it in your .env file.", "filters": [], "sql": None}
+
+    try:
+        import anthropic
+        client = anthropic.Anthropic(api_key=api_key)
+
+        system_prompt = _build_ai_system_prompt()
+
+        messages = [{"role": "user", "content": user_input}]
+
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=2000,
+            system=system_prompt,
+            messages=messages,
+        )
+
+        ai_text = response.content[0].text
+        return _parse_ai_response(ai_text)
+
+    except Exception as e:
+        return {"text": f"Error communicating with AI: {e}", "filters": [], "sql": None}
+
+
+# ---------------------------------------------------------------------------
 # Hero header
 # ---------------------------------------------------------------------------
 
@@ -1383,6 +1655,259 @@ st.markdown("""
     <p>Real-time intelligence across 160M+ immigration court records &mdash; proceedings, hearings, judges, and outcomes.</p>
 </div>
 """, unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------------------------
+# AI Input Bar — always visible at the top
+# ---------------------------------------------------------------------------
+
+st.markdown("""
+<div style="background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+            border-radius: 16px; padding: 24px 28px; margin-bottom: 20px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.15);">
+    <div style="color: #94A3B8; font-size: 0.8rem; font-weight: 600;
+                letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 8px;">
+        AI DATA ASSISTANT
+    </div>
+    <div style="color: #E2E8F0; font-size: 0.95rem; margin-bottom: 12px;">
+        Ask a question about the data and I'll suggest filters and generate charts
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+# Input row: text input + voice button + send button
+ai_col1, ai_col2, ai_col3 = st.columns([7, 1, 1])
+with ai_col1:
+    ai_text = st.text_input(
+        "Ask about the data...",
+        placeholder="e.g., Show me asylum cases from Mexico decided in San Francisco...",
+        key="ai_top_input",
+        label_visibility="collapsed",
+    )
+with ai_col2:
+    voice_clicked = st.button("🎤", key="voice_btn", help="Record voice question", use_container_width=True)
+with ai_col3:
+    send_clicked = st.button("Ask →", key="send_ai", type="primary", use_container_width=True)
+
+# Suggestion chips
+st.markdown('<div style="margin-top: -8px; margin-bottom: 16px;">', unsafe_allow_html=True)
+sugg_cols = st.columns(4)
+suggestions = [
+    "Asylum cases from Mexico in 2024",
+    "Top judges by grant rate",
+    "Most common charges filed",
+    "Bond hearing outcomes",
+]
+for i, (col, sugg) in enumerate(zip(sugg_cols, suggestions)):
+    with col:
+        if st.button(sugg, key=f"sugg_top_{i}", use_container_width=True):
+            st.session_state.ai_pending_question = sugg
+            st.rerun()
+st.markdown('</div>', unsafe_allow_html=True)
+
+# Voice recording with Web Speech API
+if voice_clicked:
+    st.session_state.show_voice_recorder = True
+
+if st.session_state.get("show_voice_recorder"):
+    import streamlit.components.v1 as components
+
+    voice_html = """
+    <div id="voice-container" style="background: #1E293B; border-radius: 12px; padding: 20px;
+         text-align: center; color: white; font-family: Inter, sans-serif;">
+        <div id="status" style="font-size: 0.9rem; color: #94A3B8; margin-bottom: 12px;">
+            Click the microphone to start recording
+        </div>
+        <button id="micBtn" onclick="toggleRecording()"
+                style="width: 64px; height: 64px; border-radius: 50%; border: none;
+                       background: #3B82F6; color: white; cursor: pointer;
+                       font-size: 1.5rem; transition: all 0.2s;
+                       box-shadow: 0 4px 16px rgba(59,130,246,0.4);">
+            🎤
+        </button>
+        <div id="transcript" style="margin-top: 16px; font-size: 1.1rem; color: #F1F5F9;
+                                     min-height: 40px; padding: 8px;"></div>
+        <div style="margin-top: 12px;">
+            <button id="useBtn" onclick="useTranscript()"
+                    style="display:none; padding: 8px 24px; background: #10B981; color: white;
+                           border: none; border-radius: 8px; cursor: pointer; font-weight: 600;
+                           font-size: 0.9rem;">
+                Use This Question
+            </button>
+        </div>
+    </div>
+    <script>
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+    let isRecording = false;
+    let finalTranscript = '';
+
+    function toggleRecording() {
+        if (!SpeechRecognition) {
+            document.getElementById('status').textContent = 'Speech recognition not supported. Please use Chrome or Edge.';
+            return;
+        }
+        if (isRecording) {
+            recognition.stop();
+            return;
+        }
+        recognition = new SpeechRecognition();
+        recognition.lang = 'en-US';
+        recognition.interimResults = true;
+        recognition.continuous = true;
+
+        recognition.onstart = () => {
+            isRecording = true;
+            document.getElementById('micBtn').style.background = '#EF4444';
+            document.getElementById('micBtn').style.animation = 'pulse 1.5s infinite';
+            document.getElementById('status').textContent = 'Listening... Click mic again to stop';
+        };
+
+        recognition.onresult = (e) => {
+            let interim = '';
+            finalTranscript = '';
+            for (let i = 0; i < e.results.length; i++) {
+                if (e.results[i].isFinal) {
+                    finalTranscript += e.results[i][0].transcript;
+                } else {
+                    interim += e.results[i][0].transcript;
+                }
+            }
+            document.getElementById('transcript').textContent = finalTranscript || interim;
+            if (finalTranscript) {
+                document.getElementById('useBtn').style.display = 'inline-block';
+            }
+        };
+
+        recognition.onend = () => {
+            isRecording = false;
+            document.getElementById('micBtn').style.background = '#3B82F6';
+            document.getElementById('micBtn').style.animation = '';
+            document.getElementById('status').textContent = finalTranscript ? 'Recording complete' : 'Click the microphone to try again';
+        };
+
+        recognition.onerror = (e) => {
+            isRecording = false;
+            document.getElementById('micBtn').style.background = '#3B82F6';
+            document.getElementById('micBtn').style.animation = '';
+            if (e.error !== 'no-speech') {
+                document.getElementById('status').textContent = 'Error: ' + e.error;
+            }
+        };
+
+        recognition.start();
+    }
+
+    function useTranscript() {
+        const url = new URL(window.parent.location);
+        url.searchParams.set('voice_query', encodeURIComponent(finalTranscript));
+        window.parent.location.href = url.toString();
+    }
+    </script>
+    <style>
+    @keyframes pulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
+        50% { box-shadow: 0 0 0 12px rgba(239,68,68,0); }
+    }
+    </style>
+    """
+    components.html(voice_html, height=200)
+
+    # Check query params for voice result
+    voice_query = st.query_params.get("voice_query")
+    if voice_query:
+        import urllib.parse
+        decoded = urllib.parse.unquote(voice_query)
+        st.session_state.ai_pending_question = decoded
+        st.session_state.show_voice_recorder = False
+        del st.query_params["voice_query"]
+        st.rerun()
+
+# Process AI question (text or voice)
+question = None
+if send_clicked and ai_text:
+    question = ai_text
+elif st.session_state.get("ai_pending_question"):
+    question = st.session_state.pop("ai_pending_question")
+
+if question:
+    with st.spinner("Analyzing your question..."):
+        response = _call_ai_assistant(question)
+
+        # If there's SQL, run it and generate chart
+        if response.get("sql"):
+            extracted_sql = response["sql"].strip()
+            if "limit" not in extracted_sql.lower():
+                extracted_sql += "\nLIMIT 1000"
+            sql_result = run_query(extracted_sql)
+            if not sql_result.empty:
+                chart = _auto_chart(sql_result)
+                if chart is not None:
+                    response["chart"] = chart
+                response["sql_result"] = sql_result
+
+        st.session_state.ai_last_response = response
+        st.rerun()
+
+# AI Response area (if there's a pending response)
+if st.session_state.get("ai_last_response"):
+    response = st.session_state.ai_last_response
+
+    # Show AI explanation
+    st.markdown(f"""
+    <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px;
+                padding: 16px 20px; margin-bottom: 16px;">
+        <div style="font-size: 0.8rem; color: #64748B; font-weight: 600; margin-bottom: 8px;">
+            AI RESPONSE
+        </div>
+        <div style="color: #1E293B; font-size: 0.95rem; line-height: 1.6;">
+            {response['text']}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Show suggested filters as checkable items
+    if response.get("filters"):
+        st.markdown("""
+        <div style="background: #F0FDF4; border: 1px solid #86EFAC; border-radius: 12px;
+                    padding: 16px; margin-bottom: 16px;">
+            <div style="font-weight: 700; color: #166534; margin-bottom: 12px;">
+                Suggested Filters
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Render each filter as a checkbox
+        for i, f in enumerate(response["filters"]):
+            if f.get("type") == "date":
+                display_text = f"{f['label']}: {f.get('from', '')} to {f.get('to', '')}"
+            else:
+                display_text = f"{f['label']}: {f.get('display', ', '.join(f.get('values', [])))}"
+            st.checkbox(
+                display_text,
+                value=True,
+                key=f"ai_filter_check_{i}",
+            )
+
+        # Apply button
+        if st.button("Apply Selected Filters", type="primary", key="apply_ai_filters"):
+            selected_filters = [f for i, f in enumerate(response["filters"])
+                               if st.session_state.get(f"ai_filter_check_{i}", True)]
+            _apply_ai_filters(selected_filters, response.get("tables_needed", []))
+
+    # Show chart if available
+    if response.get("chart"):
+        st.plotly_chart(response["chart"], use_container_width=True)
+
+    # Show SQL results table if available
+    if response.get("sql_result") is not None:
+        st.dataframe(response["sql_result"], use_container_width=True, hide_index=True)
+        st.caption(f"{len(response['sql_result']):,} rows returned")
+
+    # Dismiss button
+    if st.button("Dismiss", key="dismiss_ai"):
+        st.session_state.ai_last_response = None
+        st.rerun()
 
 
 # ---------------------------------------------------------------------------
@@ -2090,7 +2615,7 @@ if _filter_col is not None:
 
 # Render tabs + charts in left column
 with _chart_col:
-    _tab_names = [label for _, label in _active_table_tabs] + ["🔍 Filters", "🤖 AI Assistant"]
+    _tab_names = [label for _, label in _active_table_tabs] + ["🔍 Filters"]
     _tabs = st.tabs(_tab_names)
 
     # Render each active table tab
@@ -2098,9 +2623,8 @@ with _chart_col:
         with _tabs[i]:
             render_table_analysis(tn)
 
-    # Filters and AI Analyst tabs are at the end
+    # Filters tab is at the end
     _explore_idx = len(_active_table_tabs)
-    _ai_idx = _explore_idx + 1
 
 
 # ===== Filters Tab ============================================================
@@ -2147,396 +2671,3 @@ with _tabs[_explore_idx]:
             st.rerun()
 
 
-# ===== AI Data Assistant Tab ==================================================
-
-def _build_ai_system_prompt() -> str:
-    """Build a comprehensive system prompt with table/field metadata and lookup samples."""
-    # Table descriptions
-    table_section = "## Available Tables\n"
-    for tn, meta in TABLE_META.items():
-        table_section += f"- **{tn}** ({meta['label']}): {meta['description']}\n"
-
-    # Field metadata per table
-    field_section = "\n## Fields by Table\n"
-    for tn, fields in FIELD_META.items():
-        if tn not in TABLE_META:
-            continue
-        field_section += f"\n### {tn} ({TABLE_META[tn]['label']})\n"
-        for fname, fmeta in fields.items():
-            ftype = fmeta.get("type", "text")
-            lookup_key = fmeta.get("lookup", "")
-            field_section += f"- `{fname}` — {fmeta['label']} (type: {ftype}"
-            if lookup_key:
-                field_section += f", lookup: {lookup_key}"
-            field_section += ")\n"
-
-    # Sample lookup values (top 20 each for key lookups)
-    lookup_section = "\n## Lookup Code Mappings (sample — first 20 values)\n"
-    _key_lookups = ["nationality", "base_city", "judge", "case_type", "decision",
-                    "language", "custody", "charge", "application", "absentia",
-                    "sex", "lpr", "hearing_loc"]
-    for lk in _key_lookups:
-        vals = LOOKUPS.get(lk, {})
-        if not vals:
-            continue
-        sample = dict(list(vals.items())[:20])
-        lookup_section += f"\n**{lk}**:\n"
-        for code, desc in sample.items():
-            lookup_section += f"  {code} = {desc}\n"
-
-    # Current dashboard state
-    state_section = "\n## Current Dashboard State\n"
-    state_section += f"Active tables: {', '.join(st.session_state.active_tables) if st.session_state.active_tables else 'None'}\n"
-    current_filters = st.session_state.get("filters", {})
-    if current_filters:
-        state_section += "Current filters:\n"
-        for fk, fv in current_filters.items():
-            state_section += f"  {fk}: {fv}\n"
-    else:
-        state_section += "No filters currently applied.\n"
-
-    return f"""You are an AI Data Assistant for the EOIR Analytics Platform — an immigration court intelligence tool with 160M+ rows of data in DuckDB.
-
-You help users explore EOIR immigration court data by:
-1. Understanding their questions in plain English
-2. Suggesting dashboard filters they can apply with one click
-3. Writing and running SQL queries for custom analysis
-4. Generating charts and visualizations
-5. Asking clarifying questions when the request is ambiguous
-
-{table_section}
-{field_section}
-{lookup_section}
-{state_section}
-
-## Key Database Facts
-- CRITICAL: All columns in the 6 main tables (a_tblcase, b_tblproceeding, tbl_schedule, tbl_court_appln, tbl_court_motions, b_tblproceedcharges) were imported as VARCHAR. You MUST use TRY_CAST() for date and number comparisons.
-- To join b_tblproceeding to a_tblcase: TRY_CAST(p.IDNCASE AS BIGINT) = c.IDNCASE
-- For grant rates: DEC_CODE IN ('G', 'A') for grants; ('D', 'R', 'X') for denials
-- For decision lookups: p.DEC_CODE = d.strDecCode (optionally AND p.CASE_TYPE = d.strCaseType)
-- For nationality lookups: c.NAT = n.NAT_CODE
-
-## Response Format
-You MUST respond with natural language explanation AND a JSON block. The JSON block must be wrapped in ```json ... ``` markers.
-
-When suggesting filters the user can apply to the dashboard:
-```json
-{{
-  "filters": [
-    {{"table": "b_tblproceeding", "field": "CASE_TYPE", "values": ["ASY"], "label": "Case Type", "display": "Asylum Only Case"}},
-    {{"table": "a_tblcase", "field": "NAT", "values": ["MX"], "label": "Nationality", "display": "MEXICO"}},
-    {{"table": "b_tblproceeding", "field": "BASE_CITY_CODE", "values": ["SFR"], "label": "Court", "display": "San Francisco"}},
-    {{"table": "b_tblproceeding", "field": "COMP_DATE", "type": "date", "from": "2024-01-01", "to": "2024-12-31", "label": "Completion Date"}}
-  ],
-  "tables_needed": ["b_tblproceeding", "a_tblcase"],
-  "sql": "SELECT ... (optional SQL for a custom chart/analysis)",
-  "clarification": null
-}}
-```
-
-When you need clarification:
-```json
-{{
-  "filters": [],
-  "clarification": "When you say 'recent cases', do you mean the last 6 months, last year, or last 5 years?"
-}}
-```
-
-When providing analysis with SQL but no dashboard filters:
-```json
-{{
-  "filters": [],
-  "sql": "SELECT ...",
-  "clarification": null
-}}
-```
-
-## Rules
-1. ALWAYS include the JSON block in your response.
-2. For filter suggestions, use the exact field names and lookup codes from the metadata above.
-3. SQL must be DuckDB-compatible. ALWAYS JOIN lookup tables for human-readable names. Use COALESCE(lookup.name, raw_code) as fallback.
-4. ALWAYS use TRY_CAST for date/number columns in SQL.
-5. Keep SQL results concise (LIMIT 1000 max).
-6. After SQL, briefly explain what the query does and key findings to look for.
-7. Suggest follow-up questions when appropriate.
-8. If the user's request maps well to dashboard filters, prefer suggesting filters. If it requires aggregation/computation, use SQL.
-9. You can suggest BOTH filters and SQL in the same response.
-10. When a filter value maps to a lookup code, put the code in "values" and the human-readable name in "display"."""
-
-
-def _parse_ai_response(ai_text: str) -> dict:
-    """Parse AI response text to extract JSON block with filters/sql/clarification."""
-    result = {"text": ai_text, "filters": [], "tables_needed": [], "sql": None, "clarification": None}
-
-    # Find JSON block
-    json_match = re.search(r"```json\s*\n(.*?)```", ai_text, re.DOTALL)
-    if json_match:
-        try:
-            parsed = json.loads(json_match.group(1).strip())
-            result["filters"] = parsed.get("filters", [])
-            result["tables_needed"] = parsed.get("tables_needed", [])
-            result["sql"] = parsed.get("sql")
-            result["clarification"] = parsed.get("clarification")
-        except (json.JSONDecodeError, KeyError):
-            pass
-
-        # Remove JSON block from display text
-        display_text = ai_text[:json_match.start()] + ai_text[json_match.end():]
-        result["text"] = display_text.strip()
-
-    # Also check for standalone SQL blocks (```sql ... ```)
-    if not result["sql"]:
-        sql_match = re.search(r"```sql\s*\n(.*?)```", ai_text, re.DOTALL)
-        if sql_match:
-            result["sql"] = sql_match.group(1).strip()
-
-    return result
-
-
-def _render_filter_suggestion_card(filters: list, tables_needed: list, msg_idx: int):
-    """Render a styled card showing suggested filters with Apply/Modify buttons."""
-    st.markdown("""
-    <div style="background: linear-gradient(135deg, #F0FDF4 0%, #ECFDF5 100%);
-                border: 1px solid #86EFAC; border-radius: 12px;
-                padding: 16px 20px; margin: 12px 0;">
-        <div style="font-weight: 700; color: #166534; margin-bottom: 10px; font-size: 0.95rem;">
-            Suggested Filters
-        </div>
-    """, unsafe_allow_html=True)
-
-    for f in filters:
-        if f.get("type") == "date":
-            st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;**{f['label']}**: {f.get('from', '')} to {f.get('to', '')}")
-        else:
-            display = f.get("display", ", ".join(f.get("values", [])))
-            st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;**{f['label']}**: {display}")
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    col1, col2, col3 = st.columns([2, 2, 4])
-    with col1:
-        if st.button("Apply These Filters", key=f"apply_ai_{msg_idx}", type="primary"):
-            _apply_ai_filters(filters, tables_needed)
-    with col2:
-        if st.button("Modify First", key=f"modify_ai_{msg_idx}"):
-            _apply_ai_filters(filters, tables_needed, open_panel=True)
-
-
-def _apply_ai_filters(filters: list, tables_needed: list, open_panel: bool = False):
-    """Apply AI-suggested filters to the dashboard state."""
-    # Activate required tables
-    for t in tables_needed:
-        if t in TABLE_META and t not in st.session_state.active_tables:
-            st.session_state.active_tables.append(t)
-
-    # Set filters
-    for f in filters:
-        filter_key = f"{f['table']}.{f['field']}"
-        if f.get("type") == "date":
-            st.session_state.filters[filter_key] = {
-                "type": "date",
-                "from": f.get("from", ""),
-                "to": f.get("to", ""),
-            }
-        elif f.get("type") == "number":
-            st.session_state.filters[filter_key] = {
-                "type": "number",
-                "min": f.get("min", 0),
-                "max": f.get("max", 0),
-            }
-        else:
-            st.session_state.filters[filter_key] = f.get("values", [])
-
-    if open_panel:
-        st.session_state.show_filter_modal = True
-
-    # Save config
-    config = st.session_state.dashboard_config
-    config["active_tables"] = list(st.session_state.active_tables)
-    _save_config(config)
-
-    st.rerun()
-
-
-def _auto_chart(result: pd.DataFrame) -> go.Figure | None:
-    """Auto-detect chart type from query results."""
-    if result.empty or len(result.columns) < 2:
-        return None
-
-    date_cols = [c for c in result.columns if any(w in c.lower() for w in ("date", "year", "month", "quarter"))]
-    num_cols = [c for c in result.columns if result[c].dtype in ("int64", "float64")]
-    str_cols = [c for c in result.columns if result[c].dtype == "object"]
-
-    if date_cols and num_cols:
-        fig = go.Figure()
-        for i, nc in enumerate(num_cols[:3]):
-            fig.add_trace(go.Scatter(
-                x=result[date_cols[0]], y=result[nc],
-                name=nc, mode="lines+markers",
-                line=dict(width=2.5, color=CHART_COLORS[i % len(CHART_COLORS)]),
-            ))
-        fig.update_layout(height=380, template=PLOTLY_TEMPLATE)
-        return fig
-    elif len(result) <= 30 and num_cols and str_cols:
-        fig = go.Figure(go.Bar(
-            x=result[str_cols[0]], y=result[num_cols[0]],
-            marker=dict(color=ACCENT_BLUE, cornerradius=6),
-        ))
-        fig.update_layout(height=380, template=PLOTLY_TEMPLATE)
-        return fig
-
-    return None
-
-
-def _call_ai_assistant(user_input: str) -> dict:
-    """Call Anthropic API and return parsed response."""
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        return {"text": "ANTHROPIC_API_KEY not found in environment. Please set it in your .env file.", "filters": [], "sql": None}
-
-    try:
-        import anthropic
-        client = anthropic.Anthropic(api_key=api_key)
-
-        system_prompt = _build_ai_system_prompt()
-
-        # Build messages with history (last 20 messages, keep only text content)
-        history = st.session_state.ai_messages[-20:]
-        messages = [{"role": m["role"], "content": m["content"]} for m in history]
-
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=2000,
-            system=system_prompt,
-            messages=messages,
-        )
-
-        ai_text = response.content[0].text
-        return _parse_ai_response(ai_text)
-
-    except Exception as e:
-        return {"text": f"Error communicating with AI: {e}", "filters": [], "sql": None}
-
-
-with _tabs[_ai_idx]:
-    # Chat CSS
-    st.markdown("""
-    <style>
-    .chat-user {
-        background: linear-gradient(135deg, #1E40AF, #3B82F6);
-        color: white;
-        padding: 12px 16px;
-        border-radius: 12px 12px 4px 12px;
-        margin: 8px 0;
-        max-width: 80%;
-        margin-left: auto;
-        font-size: 0.95rem;
-    }
-    .chat-ai {
-        background: #F1F5F9;
-        color: #1E293B;
-        padding: 12px 16px;
-        border-radius: 12px 12px 12px 4px;
-        margin: 8px 0;
-        max-width: 90%;
-        font-size: 0.95rem;
-        line-height: 1.6;
-    }
-    .chat-ai strong { color: #0F172A; }
-    .chat-ai code { background: #E2E8F0; padding: 1px 5px; border-radius: 4px; font-size: 0.88rem; }
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.markdown("### AI Data Assistant")
-    st.caption("Ask questions about the data in plain English. I'll suggest filters, generate charts, and run queries for you.")
-
-    # Suggested question chips
-    st.markdown("**Try asking:**")
-    _ai_suggestions = [
-        "Show me asylum cases from Mexico in 2024",
-        "Which courts have the most pending cases?",
-        "Compare grant rates for top 10 nationalities",
-        "What are the most common charges filed?",
-        "Show bond hearing outcomes for detained respondents",
-    ]
-    _chip_cols = st.columns(len(_ai_suggestions))
-    for _si, _sugg in enumerate(_ai_suggestions):
-        with _chip_cols[_si]:
-            if st.button(_sugg, key=f"sugg_{_si}", use_container_width=True):
-                st.session_state["ai_pending_question"] = _sugg
-
-    st.markdown("---")
-
-    # Initialize chat history
-    if "ai_messages" not in st.session_state:
-        st.session_state.ai_messages = []
-
-    # Display chat history
-    for _mi, _msg in enumerate(st.session_state.ai_messages):
-        if _msg["role"] == "user":
-            st.markdown(f'<div class="chat-user">{_msg["content"]}</div>', unsafe_allow_html=True)
-        else:
-            st.markdown(f'<div class="chat-ai">{_msg["content"]}</div>', unsafe_allow_html=True)
-            # Render filter suggestion card if present
-            if _msg.get("filters"):
-                _render_filter_suggestion_card(_msg["filters"], _msg.get("tables_needed", []), msg_idx=_msg.get("idx", _mi))
-            # Render SQL results if present
-            if _msg.get("sql_result") is not None:
-                st.dataframe(_msg["sql_result"], use_container_width=True, hide_index=True)
-                st.caption(f"{len(_msg['sql_result']):,} rows returned")
-            if _msg.get("chart") is not None:
-                st.plotly_chart(_msg["chart"], use_container_width=True)
-
-    # Chat input
-    user_question = st.chat_input("Ask about the EOIR data...", key="ai_chat_input")
-
-    # Also check for chip-triggered question
-    if "ai_pending_question" in st.session_state:
-        user_question = st.session_state.pop("ai_pending_question")
-
-    if user_question:
-        # Add user message
-        st.session_state.ai_messages.append({"role": "user", "content": user_question})
-
-        # Call AI
-        with st.spinner("Thinking..."):
-            response = _call_ai_assistant(user_question)
-
-        # Build assistant message
-        ai_msg = {
-            "role": "assistant",
-            "content": response["text"],
-            "idx": len(st.session_state.ai_messages),
-        }
-
-        if response.get("filters"):
-            ai_msg["filters"] = response["filters"]
-            ai_msg["tables_needed"] = response.get("tables_needed", [])
-
-        # Run SQL if provided
-        if response.get("sql"):
-            extracted_sql = response["sql"].strip()
-            if "limit" not in extracted_sql.lower():
-                extracted_sql += "\nLIMIT 1000"
-            sql_result = run_query(extracted_sql)
-            if not sql_result.empty:
-                ai_msg["sql_result"] = sql_result
-                # Auto-generate chart
-                chart = _auto_chart(sql_result)
-                if chart is not None:
-                    ai_msg["chart"] = chart
-
-        st.session_state.ai_messages.append(ai_msg)
-
-        # Cap history at 20 messages
-        if len(st.session_state.ai_messages) > 20:
-            st.session_state.ai_messages = st.session_state.ai_messages[-20:]
-
-        st.rerun()
-
-    # Clear conversation button
-    if st.session_state.ai_messages:
-        st.markdown("")
-        if st.button("Clear Conversation", key="clear_chat"):
-            st.session_state.ai_messages = []
-            st.rerun()
