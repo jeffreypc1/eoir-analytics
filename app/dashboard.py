@@ -1794,8 +1794,18 @@ st.markdown(f"""
 # AI Assistant — Toggle Button + Expandable Search
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# AI Assistant — Password gate + rate limit
+# ---------------------------------------------------------------------------
+_AI_PASSWORD = os.environ.get("AI_PASSWORD", "mobilepathways2026")
+_AI_RATE_LIMIT = 5  # max queries per session
+
 if "show_ai_search" not in st.session_state:
     st.session_state.show_ai_search = False
+if "ai_unlocked" not in st.session_state:
+    st.session_state.ai_unlocked = False
+if "ai_query_count" not in st.session_state:
+    st.session_state.ai_query_count = 0
 
 # Toggle button — always visible, compact
 _ai_btn_label = "🤖 Ask AI" if not st.session_state.show_ai_search else "🤖 Close AI Assistant"
@@ -1809,41 +1819,86 @@ voice_clicked = False
 send_clicked = False
 
 if st.session_state.show_ai_search:
-    st.markdown('<div class="ai-search-wrapper">', unsafe_allow_html=True)
-    st.markdown('<p class="ai-search-prompt">Ask a question about immigration court data</p>', unsafe_allow_html=True)
+    # Password gate
+    if not st.session_state.ai_unlocked:
+        st.markdown("""
+        <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px;
+                    padding: 20px; max-width: 400px; margin: 0 auto 16px; text-align: center;">
+            <div style="font-size: 1.2rem; margin-bottom: 8px;">🔒</div>
+            <div style="font-weight: 600; color: #1E293B; margin-bottom: 12px;">AI Assistant Access</div>
+            <div style="font-size: 0.85rem; color: #64748B; margin-bottom: 16px;">
+                Enter the password to use the AI-powered query assistant.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        pw_col1, pw_col2 = st.columns([3, 1])
+        with pw_col1:
+            pw_input = st.text_input("Password", type="password", key="ai_pw_input",
+                                     placeholder="Enter password...", label_visibility="collapsed")
+        with pw_col2:
+            if st.button("Unlock", key="ai_pw_submit", type="primary", use_container_width=True):
+                if pw_input == _AI_PASSWORD:
+                    st.session_state.ai_unlocked = True
+                    st.rerun()
+                else:
+                    st.error("Incorrect password")
+        # Don't show the rest of the AI UI
+        ai_text = ""
+        voice_clicked = False
+        send_clicked = False
 
-    # Input row: text input + voice + send
-    ai_col1, ai_col2, ai_col3 = st.columns([8, 1, 1])
-    with ai_col1:
-        ai_text = st.text_input(
-            "Search",
-            placeholder="Show me asylum cases from Mexico in 2024...",
-            key="ai_top_input",
-            label_visibility="collapsed",
-        )
-    with ai_col2:
-        voice_clicked = st.button("🎤", key="voice_btn", help="Record voice question", use_container_width=True)
-    with ai_col3:
-        send_clicked = st.button("→", key="send_ai", type="primary", use_container_width=True)
+    elif st.session_state.ai_query_count >= _AI_RATE_LIMIT:
+        st.markdown(f"""
+        <div style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 12px;
+                    padding: 16px; text-align: center; margin-bottom: 16px;">
+            <div style="font-weight: 600; color: #991B1B; margin-bottom: 4px;">
+                Rate Limit Reached
+            </div>
+            <div style="font-size: 0.85rem; color: #7F1D1D;">
+                You've used {_AI_RATE_LIMIT} AI queries this session.
+                The charts and filters are still fully available.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-    # Suggestion chips
-    suggestions = [
-        "Asylum from Mexico",
-        "Top judges by grant rate",
-        "Bond outcomes",
-        "Most common charges",
-    ]
-    chip_cols = st.columns(len(suggestions))
-    for i, (col, sugg) in enumerate(zip(chip_cols, suggestions)):
-        with col:
-            if st.button(sugg, key=f"sugg_top_{i}", use_container_width=True):
-                st.session_state.ai_pending_question = sugg
-                st.rerun()
+    else:
+        _remaining = _AI_RATE_LIMIT - st.session_state.ai_query_count
+        st.markdown(f'<div style="text-align:right; font-size:0.75rem; color:#94A3B8; margin-bottom:4px;">{_remaining} queries remaining</div>', unsafe_allow_html=True)
+        st.markdown('<div class="ai-search-wrapper">', unsafe_allow_html=True)
+        st.markdown('<p class="ai-search-prompt">Ask a question about immigration court data</p>', unsafe_allow_html=True)
 
-    st.markdown('</div>', unsafe_allow_html=True)
+        # Input row: text input + voice + send
+        ai_col1, ai_col2, ai_col3 = st.columns([8, 1, 1])
+        with ai_col1:
+            ai_text = st.text_input(
+                "Search",
+                placeholder="Show me asylum cases from Mexico in 2024...",
+                key="ai_top_input",
+                label_visibility="collapsed",
+            )
+        with ai_col2:
+            voice_clicked = st.button("🎤", key="voice_btn", help="Record voice question", use_container_width=True)
+        with ai_col3:
+            send_clicked = st.button("→", key="send_ai", type="primary", use_container_width=True)
+
+        # Suggestion chips
+        suggestions = [
+            "Asylum from Mexico",
+            "Top judges by grant rate",
+            "Bond outcomes",
+            "Most common charges",
+        ]
+        chip_cols = st.columns(len(suggestions))
+        for i, (col, sugg) in enumerate(zip(chip_cols, suggestions)):
+            with col:
+                if st.button(sugg, key=f"sugg_top_{i}", use_container_width=True):
+                    st.session_state.ai_pending_question = sugg
+                    st.rerun()
+
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # Voice recording with Web Speech API
-if voice_clicked and st.session_state.show_ai_search:
+if voice_clicked and st.session_state.show_ai_search and st.session_state.ai_unlocked:
     st.session_state.show_voice_recorder = True
 
 if st.session_state.get("show_voice_recorder"):
@@ -1967,7 +2022,8 @@ if send_clicked and ai_text:
 elif st.session_state.get("ai_pending_question"):
     question = st.session_state.pop("ai_pending_question")
 
-if question:
+if question and st.session_state.get("ai_unlocked") and st.session_state.get("ai_query_count", 0) < _AI_RATE_LIMIT:
+    st.session_state.ai_query_count = st.session_state.get("ai_query_count", 0) + 1
     with st.spinner("Analyzing your question..."):
         response = _call_ai_assistant(question)
 
