@@ -626,144 +626,231 @@ TABLE_META = {
 }
 
 # Comprehensive field metadata for every main table
+# All fields are filterable — type determines the filter UI:
+#   lookup → searchable checkbox list with resolved names
+#   text/boolean → searchable checkbox list of distinct values
+#   date → date range picker
+#   number → min/max range inputs
 FIELD_META = {
     "a_tblcase": {
         "NAT": {"label": "Nationality", "type": "lookup", "lookup": "nationality",
-                "lookup_table": "tbllookupnationality", "code_col": "NAT_CODE", "desc_col": "NAT_NAME",
-                "filter_candidate": True},
+                "lookup_table": "tbllookupnationality", "code_col": "NAT_CODE", "desc_col": "NAT_NAME"},
         "LANG": {"label": "Language", "type": "lookup", "lookup": "language",
-                 "lookup_table": "tbllanguage", "code_col": "strCode", "desc_col": "strDescription",
-                 "filter_candidate": True},
+                 "lookup_table": "tbllanguage", "code_col": "strCode", "desc_col": "strDescription"},
         "CUSTODY": {"label": "Custody Status", "type": "lookup", "lookup": "custody",
-                    "lookup_table": "tbllookupcustodystatus", "code_col": "strCode", "desc_col": "strDescription",
-                    "filter_candidate": True},
-        "Sex": {"label": "Gender", "type": "text", "filter_candidate": True},
+                    "lookup_table": "tbllookupcustodystatus", "code_col": "strCode", "desc_col": "strDescription"},
+        "Sex": {"label": "Gender", "type": "text"},
         "CASE_TYPE": {"label": "Case Type", "type": "lookup", "lookup": "case_type",
-                      "lookup_table": "tbllookupcasetype", "code_col": "strCode", "desc_col": "strDescription",
-                      "filter_candidate": True},
-        "LPR": {"label": "LPR Status", "type": "boolean", "filter_candidate": True},
-        "ALIEN_STATE": {"label": "Respondent State", "type": "text", "filter_candidate": True},
-        "ALIEN_CITY": {"label": "Respondent City", "type": "text", "filter_candidate": False},
-        "SITE_TYPE": {"label": "Site Type", "type": "text", "filter_candidate": True},
-        "DATE_OF_ENTRY": {"label": "Date of US Entry", "type": "date", "filter_candidate": False},
-        "C_BIRTHDATE": {"label": "Date of Birth", "type": "date", "filter_candidate": False},
-        "E_28_DATE": {"label": "E-28 Date", "type": "date", "filter_candidate": False},
-        "CASEPRIORITY_CODE": {"label": "Case Priority", "type": "text", "filter_candidate": True},
-        "CORRECTIONAL_FAC": {"label": "Correctional Facility", "type": "text", "filter_candidate": False},
+                      "lookup_table": "tbllookupcasetype", "code_col": "strCode", "desc_col": "strDescription"},
+        "LPR": {"label": "LPR Status", "type": "boolean"},
+        "ALIEN_STATE": {"label": "Respondent State", "type": "text"},
+        "ALIEN_CITY": {"label": "Respondent City", "type": "text"},
+        "SITE_TYPE": {"label": "Site Type", "type": "text"},
+        "DATE_OF_ENTRY": {"label": "Date of US Entry", "type": "date"},
+        "C_BIRTHDATE": {"label": "Date of Birth", "type": "date"},
+        "E_28_DATE": {"label": "E-28 Date", "type": "date"},
+        "CASEPRIORITY_CODE": {"label": "Case Priority", "type": "text"},
+        "CORRECTIONAL_FAC": {"label": "Correctional Facility", "type": "text"},
     },
     "b_tblproceeding": {
         "BASE_CITY_CODE": {"label": "Immigration Court", "type": "lookup", "lookup": "base_city",
-                           "lookup_table": "tbllookupbasecity", "code_col": "BASE_CITY_CODE", "desc_col": "BASE_CITY_NAME",
-                           "filter_candidate": True},
+                           "lookup_table": "tbllookupbasecity", "code_col": "BASE_CITY_CODE", "desc_col": "BASE_CITY_NAME"},
         "HEARING_LOC_CODE": {"label": "Hearing Location", "type": "lookup", "lookup": "hearing_loc",
-                             "lookup_table": "tbllookuphloc", "code_col": "HEARING_LOC_CODE", "desc_col": "HEARING_LOC_NAME",
-                             "filter_candidate": True},
+                             "lookup_table": "tbllookuphloc", "code_col": "HEARING_LOC_CODE", "desc_col": "HEARING_LOC_NAME"},
         "IJ_CODE": {"label": "Immigration Judge", "type": "lookup", "lookup": "judge",
-                     "lookup_table": "tbllookupjudge", "code_col": "JUDGE_CODE", "desc_col": "JUDGE_NAME",
-                     "filter_candidate": True},
+                     "lookup_table": "tbllookupjudge", "code_col": "JUDGE_CODE", "desc_col": "JUDGE_NAME"},
         "DEC_CODE": {"label": "Decision", "type": "lookup", "lookup": "decision",
-                     "lookup_table": "tbllookupcourtdecision", "code_col": "strDecCode", "desc_col": "strDecDescription",
-                     "filter_candidate": True},
-        "DEC_TYPE": {"label": "Decision Type", "type": "text", "filter_candidate": True},
+                     "lookup_table": "tbllookupcourtdecision", "code_col": "strDecCode", "desc_col": "strDecDescription"},
+        "DEC_TYPE": {"label": "Decision Type", "type": "text"},
         "CASE_TYPE": {"label": "Case Type", "type": "lookup", "lookup": "case_type",
-                      "lookup_table": "tbllookupcasetype", "code_col": "strCode", "desc_col": "strDescription",
-                      "filter_candidate": True},
+                      "lookup_table": "tbllookupcasetype", "code_col": "strCode", "desc_col": "strDescription"},
         "NAT": {"label": "Nationality", "type": "lookup", "lookup": "nationality",
-                "lookup_table": "tbllookupnationality", "code_col": "NAT_CODE", "desc_col": "NAT_NAME",
-                "filter_candidate": True},
+                "lookup_table": "tbllookupnationality", "code_col": "NAT_CODE", "desc_col": "NAT_NAME"},
         "LANG": {"label": "Language", "type": "lookup", "lookup": "language",
-                 "lookup_table": "tbllanguage", "code_col": "strCode", "desc_col": "strDescription",
-                 "filter_candidate": True},
+                 "lookup_table": "tbllanguage", "code_col": "strCode", "desc_col": "strDescription"},
         "CUSTODY": {"label": "Custody", "type": "lookup", "lookup": "custody",
-                    "lookup_table": "tbllookupcustodystatus", "code_col": "strCode", "desc_col": "strDescription",
-                    "filter_candidate": True},
-        "ABSENTIA": {"label": "In Absentia", "type": "boolean", "filter_candidate": True},
-        "CRIM_IND": {"label": "Criminal Indicator", "type": "boolean", "filter_candidate": True},
-        "IHP": {"label": "Institutional Hearing", "type": "boolean", "filter_candidate": True},
-        "AGGRAVATE_FELON": {"label": "Aggravated Felon", "type": "boolean", "filter_candidate": True},
-        "COMP_DATE": {"label": "Completion Date", "type": "date", "filter_candidate": True},
-        "OSC_DATE": {"label": "Filing Date (OSC)", "type": "date", "filter_candidate": True},
-        "HEARING_DATE": {"label": "Last Hearing Date", "type": "date", "filter_candidate": True},
+                    "lookup_table": "tbllookupcustodystatus", "code_col": "strCode", "desc_col": "strDescription"},
+        "ABSENTIA": {"label": "In Absentia", "type": "boolean"},
+        "CRIM_IND": {"label": "Criminal Indicator", "type": "boolean"},
+        "IHP": {"label": "Institutional Hearing", "type": "boolean"},
+        "AGGRAVATE_FELON": {"label": "Aggravated Felon", "type": "boolean"},
+        "COMP_DATE": {"label": "Completion Date", "type": "date"},
+        "OSC_DATE": {"label": "Filing Date (OSC)", "type": "date"},
+        "HEARING_DATE": {"label": "Last Hearing Date", "type": "date"},
     },
     "tbl_schedule": {
-        "ADJ_DATE": {"label": "Hearing Date", "type": "date", "filter_candidate": True},
+        "ADJ_DATE": {"label": "Hearing Date", "type": "date"},
         "ADJ_RSN": {"label": "Adjournment Reason", "type": "lookup", "lookup": "adjournment",
-                    "lookup_table": "tbladjournmentcodes", "code_col": "strcode", "desc_col": "strDesciption",
-                    "filter_candidate": True},
+                    "lookup_table": "tbladjournmentcodes", "code_col": "strcode", "desc_col": "strDesciption"},
         "CAL_TYPE": {"label": "Calendar Type", "type": "lookup", "lookup": "cal_type",
-                     "lookup_table": "tbllookupcal_type", "code_col": "strCalTypeCode", "desc_col": "strCalTypeDescription",
-                     "filter_candidate": True},
+                     "lookup_table": "tbllookupcal_type", "code_col": "strCalTypeCode", "desc_col": "strCalTypeDescription"},
         "SCHEDULE_TYPE": {"label": "Schedule Type", "type": "lookup", "lookup": "schedule_type",
-                          "lookup_table": "tbllookupschedule_type", "code_col": "strCode", "desc_col": "strDescription",
-                          "filter_candidate": True},
+                          "lookup_table": "tbllookupschedule_type", "code_col": "strCode", "desc_col": "strDescription"},
         "IJ_CODE": {"label": "Judge", "type": "lookup", "lookup": "judge",
-                     "lookup_table": "tbllookupjudge", "code_col": "JUDGE_CODE", "desc_col": "JUDGE_NAME",
-                     "filter_candidate": True},
+                     "lookup_table": "tbllookupjudge", "code_col": "JUDGE_CODE", "desc_col": "JUDGE_NAME"},
         "BASE_CITY_CODE": {"label": "Court", "type": "lookup", "lookup": "base_city",
-                           "lookup_table": "tbllookupbasecity", "code_col": "BASE_CITY_CODE", "desc_col": "BASE_CITY_NAME",
-                           "filter_candidate": True},
+                           "lookup_table": "tbllookupbasecity", "code_col": "BASE_CITY_CODE", "desc_col": "BASE_CITY_NAME"},
         "HEARING_LOC_CODE": {"label": "Hearing Location", "type": "lookup", "lookup": "hearing_loc",
-                             "lookup_table": "tbllookuphloc", "code_col": "HEARING_LOC_CODE", "desc_col": "HEARING_LOC_NAME",
-                             "filter_candidate": True},
-        "NOTICE_CODE": {"label": "Notice Code", "type": "text", "filter_candidate": True},
-        "ADJ_MEDIUM": {"label": "Hearing Medium", "type": "text", "filter_candidate": True},
+                             "lookup_table": "tbllookuphloc", "code_col": "HEARING_LOC_CODE", "desc_col": "HEARING_LOC_NAME"},
+        "NOTICE_CODE": {"label": "Notice Code", "type": "text"},
+        "ADJ_MEDIUM": {"label": "Hearing Medium", "type": "text"},
     },
     "tbl_court_appln": {
         "APPL_CODE": {"label": "Application Type", "type": "lookup", "lookup": "application",
-                      "lookup_table": "tbllookup_appln", "code_col": "strcode", "desc_col": "strdescription",
-                      "filter_candidate": True},
+                      "lookup_table": "tbllookup_appln", "code_col": "strcode", "desc_col": "strdescription"},
         "APPL_DEC": {"label": "Application Decision", "type": "lookup", "lookup": "court_app_dec",
-                     "lookup_table": "tbllookupcourtappdecisions", "code_col": "strCourtApplnDecCode", "desc_col": "strCourtApplnDecDesc",
-                     "filter_candidate": True},
-        "APPL_RECD_DATE": {"label": "Application Received Date", "type": "date", "filter_candidate": False},
+                     "lookup_table": "tbllookupcourtappdecisions", "code_col": "strCourtApplnDecCode", "desc_col": "strCourtApplnDecDesc"},
+        "APPL_RECD_DATE": {"label": "Application Received Date", "type": "date"},
     },
     "b_tblproceedcharges": {
         "CHARGE": {"label": "Charge", "type": "lookup", "lookup": "charge",
-                   "lookup_table": "tbllookupcharges", "code_col": "strCode", "desc_col": "strCodeDescription",
-                   "filter_candidate": True},
-        "CHG_STATUS": {"label": "Charge Status", "type": "text", "filter_candidate": True},
+                   "lookup_table": "tbllookupcharges", "code_col": "strCode", "desc_col": "strCodeDescription"},
+        "CHG_STATUS": {"label": "Charge Status", "type": "text"},
     },
     "tbl_court_motions": {
-        "COMP_DATE": {"label": "Motion Decision Date", "type": "date", "filter_candidate": False},
-        "MOTION_RECD_DATE": {"label": "Motion Filed Date", "type": "date", "filter_candidate": False},
-        "DEC": {"label": "Motion Decision", "type": "text", "filter_candidate": True},
+        "COMP_DATE": {"label": "Motion Decision Date", "type": "date"},
+        "MOTION_RECD_DATE": {"label": "Motion Filed Date", "type": "date"},
+        "DEC": {"label": "Motion Decision", "type": "text"},
         "STRFILINGPARTY": {"label": "Filed By", "type": "lookup", "lookup": "filed_by",
-                           "lookup_table": "tbllookupfiledby", "code_col": "strCode", "desc_col": "strDescription",
-                           "filter_candidate": True},
-        "STRFILINGMETHOD": {"label": "Filing Method", "type": "text", "filter_candidate": True},
+                           "lookup_table": "tbllookupfiledby", "code_col": "strCode", "desc_col": "strDescription"},
+        "STRFILINGMETHOD": {"label": "Filing Method", "type": "text"},
     },
     "d_tblassociatedbond": {
-        "DEC": {"label": "Bond Decision", "type": "text", "filter_candidate": True},
-        "INITIAL_BOND": {"label": "Initial Bond Amount", "type": "number", "filter_candidate": False},
+        "DEC": {"label": "Bond Decision", "type": "text"},
+        "INITIAL_BOND": {"label": "Initial Bond Amount", "type": "number"},
         "BASE_CITY_CODE": {"label": "Court", "type": "lookup", "lookup": "base_city",
-                           "lookup_table": "tbllookupbasecity", "code_col": "BASE_CITY_CODE", "desc_col": "BASE_CITY_NAME",
-                           "filter_candidate": True},
+                           "lookup_table": "tbllookupbasecity", "code_col": "BASE_CITY_CODE", "desc_col": "BASE_CITY_NAME"},
         "IJ_CODE": {"label": "Judge", "type": "lookup", "lookup": "judge",
-                     "lookup_table": "tbllookupjudge", "code_col": "JUDGE_CODE", "desc_col": "JUDGE_NAME",
-                     "filter_candidate": True},
-        "COMP_DATE": {"label": "Bond Decision Date", "type": "date", "filter_candidate": False},
+                     "lookup_table": "tbllookupjudge", "code_col": "JUDGE_CODE", "desc_col": "JUDGE_NAME"},
+        "COMP_DATE": {"label": "Bond Decision Date", "type": "date"},
     },
     "tbl_repsassigned": {
-        "STRATTYLEVEL": {"label": "Attorney Level", "type": "text", "filter_candidate": True},
-        "STRATTYTYPE": {"label": "Attorney Type", "type": "text", "filter_candidate": True},
+        "STRATTYLEVEL": {"label": "Attorney Level", "type": "text"},
+        "STRATTYTYPE": {"label": "Attorney Type", "type": "text"},
         "BASE_CITY_CODE": {"label": "Court", "type": "lookup", "lookup": "base_city",
-                           "lookup_table": "tbllookupbasecity", "code_col": "BASE_CITY_CODE", "desc_col": "BASE_CITY_NAME",
-                           "filter_candidate": True},
-        "E_27_DATE": {"label": "E-27 Date", "type": "date", "filter_candidate": False},
-        "E_28_DATE": {"label": "E-28 Date", "type": "date", "filter_candidate": False},
+                           "lookup_table": "tbllookupbasecity", "code_col": "BASE_CITY_CODE", "desc_col": "BASE_CITY_NAME"},
+        "E_27_DATE": {"label": "E-27 Date", "type": "date"},
+        "E_28_DATE": {"label": "E-28 Date", "type": "date"},
     },
     "tbl_custodyhistory": {
-        # Minimal fields — table details TBD
+        "CUSTODY": {"label": "Custody Status", "type": "lookup", "lookup": "custody",
+                    "lookup_table": "tbllookupcustodystatus", "code_col": "strCode", "desc_col": "strDescription"},
     },
     "tblappeal": {
-        "strAppealType": {"label": "Appeal Type", "type": "text", "filter_candidate": True},
+        "strAppealType": {"label": "Appeal Type", "type": "text"},
         "strBIADecision": {"label": "BIA Decision", "type": "lookup", "lookup": "bia_decision",
-                           "lookup_table": "tbllookupbiadecision", "code_col": "strCode", "desc_col": "strDescription",
-                           "filter_candidate": True},
-        "strBIADecisionType": {"label": "BIA Decision Type", "type": "text", "filter_candidate": True},
-        "datAppealFiled": {"label": "Appeal Filed Date", "type": "date", "filter_candidate": False},
-        "datBIADecision": {"label": "BIA Decision Date", "type": "date", "filter_candidate": False},
-        "strFiledBy": {"label": "Filed By", "type": "text", "filter_candidate": True},
+                           "lookup_table": "tbllookupbiadecision", "code_col": "strCode", "desc_col": "strDescription"},
+        "strBIADecisionType": {"label": "BIA Decision Type", "type": "text"},
+        "datAppealFiled": {"label": "Appeal Filed Date", "type": "date"},
+        "datBIADecision": {"label": "BIA Decision Date", "type": "date"},
+        "strFiledBy": {"label": "Filed By", "type": "text"},
+    },
+}
+
+# Tables where all columns are VARCHAR (need TRY_CAST for dates/numbers)
+ALL_VARCHAR_TABLES = {"b_tblproceeding", "tbl_schedule", "tbl_court_appln",
+                      "b_tblproceedcharges", "tbl_court_motions", "d_tblassociatedbond"}
+
+# Table-specific analysis configurations for dynamic chart generation
+TABLE_ANALYSIS = {
+    "b_tblproceeding": {
+        "kpi_extras": ["COUNT(DISTINCT {a}.IJ_CODE) as unique_judges",
+                       "COUNT(DISTINCT {a}.BASE_CITY_CODE) as unique_courts"],
+        "kpi_extra_labels": ["Unique Judges", "Unique Courts"],
+        "charts": [
+            {"title": "Completions Over Time", "field": "COMP_DATE", "chart_type": "time_series"},
+            {"title": "Top Decisions", "field": "DEC_CODE", "chart_type": "top_n", "lookup": "decision"},
+            {"title": "Top Nationalities", "field": "NAT", "chart_type": "top_n", "lookup": "nationality"},
+            {"title": "Top Courts", "field": "BASE_CITY_CODE", "chart_type": "top_n", "lookup": "base_city"},
+            {"title": "Top Judges", "field": "IJ_CODE", "chart_type": "top_n", "lookup": "judge"},
+            {"title": "In Absentia Rate Over Time", "field": "ABSENTIA", "chart_type": "rate_over_time",
+             "date_field": "COMP_DATE", "rate_value": "Y"},
+        ],
+    },
+    "tbl_schedule": {
+        "kpi_extras": ["COUNT(DISTINCT {a}.IJ_CODE) as unique_judges",
+                       "COUNT(DISTINCT {a}.BASE_CITY_CODE) as unique_courts"],
+        "kpi_extra_labels": ["Unique Judges", "Unique Courts"],
+        "charts": [
+            {"title": "Hearings Over Time", "field": "ADJ_DATE", "chart_type": "time_series"},
+            {"title": "Top Adjournment Reasons", "field": "ADJ_RSN", "chart_type": "top_n", "lookup": "adjournment"},
+            {"title": "Top Calendar Types", "field": "CAL_TYPE", "chart_type": "top_n", "lookup": "cal_type"},
+            {"title": "Top Courts", "field": "BASE_CITY_CODE", "chart_type": "top_n", "lookup": "base_city"},
+            {"title": "Hearing Medium Breakdown", "field": "ADJ_MEDIUM", "chart_type": "top_n"},
+        ],
+    },
+    "tbl_court_appln": {
+        "kpi_extras": [],
+        "kpi_extra_labels": [],
+        "charts": [
+            {"title": "Applications Over Time", "field": "APPL_RECD_DATE", "chart_type": "time_series"},
+            {"title": "Application Types", "field": "APPL_CODE", "chart_type": "top_n", "lookup": "application"},
+            {"title": "Application Decisions", "field": "APPL_DEC", "chart_type": "top_n", "lookup": "court_app_dec"},
+        ],
+    },
+    "b_tblproceedcharges": {
+        "kpi_extras": [],
+        "kpi_extra_labels": [],
+        "charts": [
+            {"title": "Top Charges", "field": "CHARGE", "chart_type": "top_n", "lookup": "charge"},
+            {"title": "Charge Status Breakdown", "field": "CHG_STATUS", "chart_type": "top_n"},
+        ],
+    },
+    "tbl_court_motions": {
+        "kpi_extras": [],
+        "kpi_extra_labels": [],
+        "charts": [
+            {"title": "Motions Over Time", "field": "MOTION_RECD_DATE", "chart_type": "time_series"},
+            {"title": "Motion Decisions", "field": "DEC", "chart_type": "top_n"},
+            {"title": "Filed By", "field": "STRFILINGPARTY", "chart_type": "top_n", "lookup": "filed_by"},
+        ],
+    },
+    "d_tblassociatedbond": {
+        "kpi_extras": [],
+        "kpi_extra_labels": [],
+        "charts": [
+            {"title": "Bond Decisions", "field": "DEC", "chart_type": "top_n"},
+            {"title": "Bonds Over Time", "field": "COMP_DATE", "chart_type": "time_series"},
+            {"title": "Top Courts", "field": "BASE_CITY_CODE", "chart_type": "top_n", "lookup": "base_city"},
+        ],
+    },
+    "tblappeal": {
+        "kpi_extras": [],
+        "kpi_extra_labels": [],
+        "charts": [
+            {"title": "Appeals Over Time", "field": "datAppealFiled", "chart_type": "time_series"},
+            {"title": "Appeal Types", "field": "strAppealType", "chart_type": "top_n"},
+            {"title": "BIA Decisions", "field": "strBIADecision", "chart_type": "top_n", "lookup": "bia_decision"},
+            {"title": "Filed By", "field": "strFiledBy", "chart_type": "top_n"},
+        ],
+    },
+    "a_tblcase": {
+        "kpi_extras": [],
+        "kpi_extra_labels": [],
+        "charts": [
+            {"title": "Nationality Breakdown", "field": "NAT", "chart_type": "top_n", "lookup": "nationality"},
+            {"title": "Language Breakdown", "field": "LANG", "chart_type": "top_n", "lookup": "language"},
+            {"title": "Gender Breakdown", "field": "Sex", "chart_type": "top_n"},
+            {"title": "Custody Status", "field": "CUSTODY", "chart_type": "top_n", "lookup": "custody"},
+            {"title": "Case Type Breakdown", "field": "CASE_TYPE", "chart_type": "top_n", "lookup": "case_type"},
+            {"title": "State Distribution", "field": "ALIEN_STATE", "chart_type": "top_n"},
+        ],
+    },
+    "tbl_repsassigned": {
+        "kpi_extras": [],
+        "kpi_extra_labels": [],
+        "charts": [
+            {"title": "Attorney Type Breakdown", "field": "STRATTYTYPE", "chart_type": "top_n"},
+            {"title": "Attorney Level", "field": "STRATTYLEVEL", "chart_type": "top_n"},
+            {"title": "Top Courts", "field": "BASE_CITY_CODE", "chart_type": "top_n", "lookup": "base_city"},
+        ],
+    },
+    "tbl_custodyhistory": {
+        "kpi_extras": [],
+        "kpi_extra_labels": [],
+        "charts": [
+            {"title": "Custody Status Breakdown", "field": "CUSTODY", "chart_type": "top_n", "lookup": "custody"},
+        ],
     },
 }
 
@@ -782,7 +869,7 @@ TABLE_JOINS = {
 
 # Default configuration
 _DEFAULT_CONFIG = {
-    "active_tables": ["a_tblcase", "b_tblproceeding"],
+    "active_tables": [],
     "hidden_fields": {},
 }
 
@@ -823,7 +910,7 @@ if "dashboard_config" not in st.session_state:
 
 if "active_tables" not in st.session_state:
     st.session_state.active_tables = list(st.session_state.dashboard_config.get(
-        "active_tables", _DEFAULT_CONFIG["active_tables"]))
+        "active_tables", []))
 
 if "active_popout" not in st.session_state:
     st.session_state.active_popout = None  # e.g. "a_tblcase.NAT"
@@ -1019,8 +1106,14 @@ for table_name, meta in TABLE_META.items():
 
             ftype = field_meta.get("type", "text")
             label = field_meta.get("label", field_name)
-            is_filterable = field_meta.get("filter_candidate", False)
-            is_date = ftype == "date" and is_filterable
+
+            # All fields are filterable — icon depends on type
+            if ftype == "date":
+                icon = "\U0001f4c5"   # calendar
+            elif ftype == "number":
+                icon = "\U0001f522"   # numbers
+            else:
+                icon = "\U0001f50d"   # magnifying glass
 
             # Build the sidebar row
             filter_key = f"{table_name}.{field_name}"
@@ -1031,22 +1124,14 @@ for table_name, meta in TABLE_META.items():
                 is_hidden = field_name in hidden_fields
                 admin_cols = st.sidebar.columns([5, 1])
                 with admin_cols[0]:
-                    if is_filterable or is_date:
-                        icon = "📅" if is_date else "🔍"
-                        btn_label = f"  {icon} {label}" + (" *" if has_active_filter else "")
-                        if is_hidden:
-                            btn_label = f"  ~{label}~ (hidden)"
-                        if st.button(btn_label, key=f"sb_field_{table_name}_{field_name}",
-                                     use_container_width=True):
-                            if not is_hidden:
-                                st.session_state.active_popout = filter_key
-                                st.rerun()
-                    else:
-                        display_label = f"  {label}" + (" (hidden)" if is_hidden else "")
-                        st.sidebar.markdown(
-                            f'<div class="sidebar-field-row{"  field-hidden" if is_hidden else ""}">'
-                            f'<span class="sidebar-field-name">{display_label}</span></div>',
-                            unsafe_allow_html=True)
+                    btn_label = f"  {icon} {label}" + (" *" if has_active_filter else "")
+                    if is_hidden:
+                        btn_label = f"  ~{label}~ (hidden)"
+                    if st.button(btn_label, key=f"sb_field_{table_name}_{field_name}",
+                                 use_container_width=True):
+                        if not is_hidden:
+                            st.session_state.active_popout = filter_key
+                            st.rerun()
                 with admin_cols[1]:
                     if is_hidden:
                         if st.button("+", key=f"sb_unhide_{table_name}_{field_name}"):
@@ -1061,23 +1146,16 @@ for table_name, meta in TABLE_META.items():
                             _save_config(st.session_state.dashboard_config)
                             st.rerun()
             else:
-                # Normal mode
-                if is_filterable or is_date:
-                    icon = "📅" if is_date else "🔍"
-                    btn_label = f"  {icon} {label}" + (" *" if has_active_filter else "")
-                    if st.sidebar.button(btn_label, key=f"sb_field_{table_name}_{field_name}",
-                                         use_container_width=True):
-                        # Toggle popout
-                        if st.session_state.active_popout == filter_key:
-                            st.session_state.active_popout = None
-                        else:
-                            st.session_state.active_popout = filter_key
-                        st.rerun()
-                else:
-                    st.sidebar.markdown(
-                        f'<div class="sidebar-field-row">'
-                        f'<span class="sidebar-field-name">  {label}</span></div>',
-                        unsafe_allow_html=True)
+                # Normal mode — all fields get a filter button
+                btn_label = f"  {icon} {label}" + (" *" if has_active_filter else "")
+                if st.sidebar.button(btn_label, key=f"sb_field_{table_name}_{field_name}",
+                                     use_container_width=True):
+                    # Toggle popout
+                    if st.session_state.active_popout == filter_key:
+                        st.session_state.active_popout = None
+                    else:
+                        st.session_state.active_popout = filter_key
+                    st.rerun()
 
 
 st.sidebar.divider()
@@ -1133,40 +1211,56 @@ def build_where(
         table_name, field_name = filter_key.split(".", 1)
         field_meta = FIELD_META.get(table_name, {}).get(field_name, {})
 
-        if field_meta.get("type") == "date" and isinstance(filter_value, dict):
-            # Date range filter
-            alias_map = {t: m["alias"] for t, m in TABLE_META.items()}
-            if table_name == "b_tblproceeding":
-                alias = base_alias if table_type == "proc" else alias_map.get(table_name, base_alias)
-            elif table_name == "tbl_schedule":
-                alias = base_alias if table_type == "sched" else alias_map.get(table_name, base_alias)
-            else:
-                alias = alias_map.get(table_name, base_alias)
+        # Determine the alias for this filter's table
+        alias_map = {t: m["alias"] for t, m in TABLE_META.items()}
+        base_table_map = {"proc": "b_tblproceeding", "sched": "tbl_schedule", "motion": "tbl_court_motions"}
+        if table_name == base_table_map.get(table_type):
+            alias = base_alias
+        elif table_name in alias_map:
+            needs_tables.add(table_name)
+            alias = alias_map[table_name]
+        else:
+            alias = base_alias
 
-            # Only add join if the table isn't the base
-            base_table_map = {"proc": "b_tblproceeding", "sched": "tbl_schedule", "motion": "tbl_court_motions"}
-            if table_name != base_table_map.get(table_type):
-                needs_tables.add(table_name)
+        # Override alias for base table types that match
+        if table_name == "b_tblproceeding" and table_type == "proc":
+            alias = base_alias
+        elif table_name == "tbl_schedule" and table_type == "sched":
+            alias = base_alias
 
+        # Detect filter type from dict or list
+        filter_type = None
+        if isinstance(filter_value, dict):
+            filter_type = filter_value.get("type", "date")  # legacy dicts without "type" assumed date
+        elif isinstance(filter_value, list):
+            filter_type = "categorical"
+
+        needs_cast = table_name in ALL_VARCHAR_TABLES
+
+        if filter_type == "date":
             date_from = filter_value.get("from", "2000-01-01")
             date_to = filter_value.get("to", date.today().strftime("%Y-%m-%d"))
-            conditions.append(f'TRY_CAST({alias}."{field_name}" AS TIMESTAMP) >= \'{date_from}\'')
-            conditions.append(f'TRY_CAST({alias}."{field_name}" AS TIMESTAMP) <= \'{date_to}\'')
+            if needs_cast:
+                conditions.append(f'TRY_CAST({alias}."{field_name}" AS TIMESTAMP) >= \'{date_from}\'')
+                conditions.append(f'TRY_CAST({alias}."{field_name}" AS TIMESTAMP) <= \'{date_to}\'')
+            else:
+                conditions.append(f'{alias}."{field_name}" >= \'{date_from}\'')
+                conditions.append(f'{alias}."{field_name}" <= \'{date_to}\'')
             conditions.append(f'{alias}."{field_name}" IS NOT NULL')
             date_constraints_applied = True
 
-        elif field_meta.get("type") != "date" and isinstance(filter_value, list) and filter_value:
-            # Categorical filter
-            alias_map = {t: m["alias"] for t, m in TABLE_META.items()}
-            base_table_map = {"proc": "b_tblproceeding", "sched": "tbl_schedule", "motion": "tbl_court_motions"}
-            if table_name == base_table_map.get(table_type):
-                alias = base_alias
-            elif table_name in alias_map:
-                needs_tables.add(table_name)
-                alias = alias_map[table_name]
+        elif filter_type == "number":
+            num_min = filter_value.get("min", 0)
+            num_max = filter_value.get("max", 999999999)
+            if needs_cast:
+                conditions.append(f'TRY_CAST({alias}."{field_name}" AS DOUBLE) >= {num_min}')
+                conditions.append(f'TRY_CAST({alias}."{field_name}" AS DOUBLE) <= {num_max}')
             else:
-                alias = base_alias
+                conditions.append(f'{alias}."{field_name}" >= {num_min}')
+                conditions.append(f'{alias}."{field_name}" <= {num_max}')
+            conditions.append(f'{alias}."{field_name}" IS NOT NULL')
 
+        elif filter_type == "categorical" and filter_value:
             quoted = ", ".join(f"'{v}'" for v in filter_value)
             conditions.append(f'{alias}."{field_name}" IN ({quoted})')
 
@@ -1264,15 +1358,14 @@ def _render_filter_popout():
 
     label = field_meta.get("label", field_name)
     ftype = field_meta.get("type", "text")
-    is_date = ftype == "date"
 
     st.markdown('<div class="filter-popout">', unsafe_allow_html=True)
 
-    if is_date:
+    if ftype == "date":
         # ----- DATE RANGE POPOUT -----
         header_cols = st.columns([6, 1])
         with header_cols[0]:
-            st.markdown(f"**📅 {label}**")
+            st.markdown(f"**\U0001f4c5 {label}**")
         with header_cols[1]:
             if st.button("Close", key="popout_close"):
                 st.session_state.active_popout = None
@@ -1301,16 +1394,20 @@ def _render_filter_popout():
         # Quick presets
         with d_cols[2]:
             st.markdown("**Quick Range**")
-            qc1, qc2, qc3 = st.columns(3)
+            qc1, qc2, qc3, qc4 = st.columns(4)
             with qc1:
                 if st.button("Last Year", key=f"popout_q1_{popout_key}"):
                     new_from = date(date.today().year - 1, 1, 1)
                     new_to = date.today()
             with qc2:
-                if st.button("Last 5 Years", key=f"popout_q5_{popout_key}"):
-                    new_from = date(date.today().year - 5, 1, 1)
+                if st.button("Last 3Y", key=f"popout_q3_{popout_key}"):
+                    new_from = date(date.today().year - 3, 1, 1)
                     new_to = date.today()
             with qc3:
+                if st.button("Last 5Y", key=f"popout_q5_{popout_key}"):
+                    new_from = date(date.today().year - 5, 1, 1)
+                    new_to = date.today()
+            with qc4:
                 if st.button("All Time", key=f"popout_qall_{popout_key}"):
                     new_from = date(2000, 1, 1)
                     new_to = date.today()
@@ -1319,8 +1416,41 @@ def _render_filter_popout():
         with apply_cols[1]:
             if st.button("Apply Date Range", key=f"popout_apply_{popout_key}", type="primary"):
                 st.session_state.filters[popout_key] = {
+                    "type": "date",
                     "from": new_from.strftime("%Y-%m-%d"),
                     "to": new_to.strftime("%Y-%m-%d"),
+                }
+                st.session_state.active_popout = None
+                st.rerun()
+
+    elif ftype == "number":
+        # ----- NUMBER RANGE POPOUT -----
+        header_cols = st.columns([6, 1])
+        with header_cols[0]:
+            st.markdown(f"**\U0001f522 {label}**")
+        with header_cols[1]:
+            if st.button("Close", key="popout_close"):
+                st.session_state.active_popout = None
+                st.rerun()
+
+        # Get current number filter values
+        current = st.session_state.filters.get(popout_key, {})
+        current_min = current.get("min", 0) if isinstance(current, dict) else 0
+        current_max = current.get("max", 1000000) if isinstance(current, dict) else 1000000
+
+        n_cols = st.columns(2)
+        with n_cols[0]:
+            new_min = st.number_input("Min", value=int(current_min), key=f"popout_num_min_{popout_key}")
+        with n_cols[1]:
+            new_max = st.number_input("Max", value=int(current_max), key=f"popout_num_max_{popout_key}")
+
+        apply_cols = st.columns([4, 1])
+        with apply_cols[1]:
+            if st.button("Apply Range", key=f"popout_apply_{popout_key}", type="primary"):
+                st.session_state.filters[popout_key] = {
+                    "type": "number",
+                    "min": new_min,
+                    "max": new_max,
                 }
                 st.session_state.active_popout = None
                 st.rerun()
@@ -1329,7 +1459,7 @@ def _render_filter_popout():
         # ----- LOOKUP / TEXT / BOOLEAN POPOUT -----
         header_cols = st.columns([6, 1])
         with header_cols[0]:
-            st.markdown(f"**🔍 {label}**")
+            st.markdown(f"**\U0001f50d {label}**")
         with header_cols[1]:
             if st.button("Close", key="popout_close"):
                 st.session_state.active_popout = None
@@ -1362,7 +1492,7 @@ def _render_filter_popout():
             if st.button("Clear All", key=f"popout_clrall_{popout_key}"):
                 current_selections = set()
 
-        # Checkbox grid — 2 columns
+        # Checkbox grid -- 2 columns
         col1, col2 = st.columns(2)
         new_selections = set()
         for i, (code, display, count) in enumerate(value_counts):
@@ -1378,7 +1508,7 @@ def _render_filter_popout():
                     new_selections.add(code)
 
         if total_options == 500:
-            st.caption(f"Showing first 500 of many values. Use search to narrow down.")
+            st.caption("Showing first 500 of many values. Use search to narrow down.")
         else:
             st.caption(f"{total_options} total options")
 
@@ -1419,10 +1549,17 @@ def _render_active_filters_bar():
         lookup = LOOKUPS.get(lookup_key, {}) if lookup_key else {}
 
         if isinstance(filter_value, dict):
-            # Date range
-            display = f"{filter_value.get('from','')} to {filter_value.get('to','')}"
+            ft = filter_value.get("type", "date")
+            if ft == "date":
+                display = f"{filter_value.get('from','')} to {filter_value.get('to','')}"
+            elif ft == "number":
+                nmin = filter_value.get("min", 0)
+                nmax = filter_value.get("max", 0)
+                display = f"${nmin:,.0f} - ${nmax:,.0f}"
+            else:
+                display = str(filter_value)
         elif isinstance(filter_value, list):
-            # Categorical — show up to 3 values
+            # Categorical -- show up to 3 values
             display_vals = [lookup.get(v, v) for v in filter_value[:3]]
             display = ", ".join(display_vals)
             if len(filter_value) > 3:
@@ -1461,717 +1598,292 @@ _render_active_filters_bar()
 
 
 # ---------------------------------------------------------------------------
-# Tabs
+# Generic Table Analysis Renderer
 # ---------------------------------------------------------------------------
 
-tab_exec, tab_outcomes, tab_courts, tab_judges, tab_hearings, tab_explore, tab_ai = st.tabs([
-    "Executive Summary",
-    "Case Outcomes",
-    "Court Performance",
-    "Judge Analytics",
-    "Hearings",
-    "Data Explorer",
-    "AI Analyst",
-])
+def _needs_try_cast(table_name: str) -> bool:
+    """Check if this table needs TRY_CAST for date/number columns."""
+    return table_name in ALL_VARCHAR_TABLES
 
 
-# ===== TAB 1: Executive Summary =============================================
-with tab_exec:
-    if not _is_table_active("b_tblproceeding"):
-        _table_required_message("Proceedings")
+@st.cache_data(ttl=300)
+def _run_table_kpi(table_name: str, alias: str, where_clause: str, from_clause: str,
+                   extra_selects: list[str]) -> pd.DataFrame:
+    """Run KPI query for a table tab."""
+    extras = ", ".join(extra_selects) if extra_selects else ""
+    if extras:
+        extras = ", " + extras
+    sql = f"""
+        SELECT
+            COUNT(*) as total_rows,
+            COUNT(DISTINCT {alias}.IDNCASE) as unique_cases
+            {extras}
+        FROM {from_clause}
+        WHERE {where_clause}
+    """
+    return run_query(sql)
+
+
+@st.cache_data(ttl=300)
+def _run_time_series(table_name: str, alias: str, field: str, where_clause: str,
+                     from_clause: str) -> pd.DataFrame:
+    """Generate monthly time series for a date field."""
+    needs_cast = _needs_try_cast(table_name)
+    if needs_cast:
+        date_expr = f'DATE_TRUNC(\'month\', TRY_CAST({alias}."{field}" AS TIMESTAMP))'
     else:
-        where, needs_tables = build_where("p", table_type="proc")
-        from_clause = _proc_from("p", "c", needs_tables)
+        date_expr = f'DATE_TRUNC(\'month\', {alias}."{field}")'
+    sql = f"""
+        SELECT {date_expr} as month, COUNT(*) as count
+        FROM {from_clause}
+        WHERE {where_clause} AND {alias}."{field}" IS NOT NULL
+        GROUP BY 1 ORDER BY 1
+    """
+    return run_query(sql)
 
-        # --- KPI row ---
-        kpi_sql = f"""
-            SELECT
-                COUNT(*) as total_proceedings,
-                COUNT(DISTINCT p.IDNCASE) as unique_cases,
-                COUNT(DISTINCT p.IJ_CODE) as unique_judges,
-                COUNT(DISTINCT p.BASE_CITY_CODE) as courts_active,
-                ROUND(100.0 * SUM(CASE WHEN p.DEC_CODE IN ('G','A') THEN 1 ELSE 0 END)
-                    / NULLIF(SUM(CASE WHEN p.DEC_CODE IN ('G','A','D','R','X') THEN 1 ELSE 0 END), 0), 1) as grant_rate,
-                ROUND(AVG(CASE
-                    WHEN TRY_CAST(p.COMP_DATE AS TIMESTAMP) IS NOT NULL
-                         AND TRY_CAST(p.OSC_DATE AS TIMESTAMP) IS NOT NULL
-                    THEN DATEDIFF('day', TRY_CAST(p.OSC_DATE AS TIMESTAMP), TRY_CAST(p.COMP_DATE AS TIMESTAMP))
-                    ELSE NULL END), 0) as avg_days_to_decision
-            FROM {from_clause}
-            WHERE {where}
-        """
-        kpi = run_query(kpi_sql)
 
-        this_year = date.today().year
-        kpi_year_sql = f"""
-            SELECT COUNT(*) as completed_this_year
-            FROM {from_clause}
-            WHERE {where}
-                AND TRY_CAST(p."{_proc_date}" AS TIMESTAMP) >= '{this_year}-01-01'
-        """
-        kpi_year = run_query(kpi_year_sql)
-
-        if not kpi.empty:
-            k = kpi.iloc[0]
-            c1, c2, c3, c4, c5 = st.columns(5)
-            with c1:
-                st.metric("Total Proceedings", _fmt_number(k["total_proceedings"]))
-            with c2:
-                st.metric("Unique Cases", _fmt_number(k["unique_cases"]))
-            with c3:
-                days = k["avg_days_to_decision"]
-                st.metric("Avg Days to Decision", f"{int(days):,}" if pd.notna(days) else "N/A")
-            with c4:
-                gr = k["grant_rate"]
-                st.metric("National Grant Rate", f"{gr:.1f}%" if pd.notna(gr) else "N/A")
-            with c5:
-                yr_count = kpi_year.iloc[0]["completed_this_year"] if not kpi_year.empty else 0
-                st.metric("Completed This Year", _fmt_number(yr_count))
-
-        st.markdown("")
-
-        # --- Cases over time (area chart) ---
-        time_sql = f"""
-            SELECT
-                DATE_TRUNC('month', TRY_CAST(p."{_proc_date}" AS TIMESTAMP)) as month,
-                COUNT(*) as cases
-            FROM {from_clause}
-            WHERE {where}
-            GROUP BY 1 ORDER BY 1
-        """
-        time_df = run_query(time_sql)
-        if not time_df.empty:
-            fig = _make_area_chart(time_df, "month", "cases", ACCENT_BLUE, "Completed Cases Over Time", 340)
-            st.plotly_chart(fig, use_container_width=True, key="exec_time")
-
-        # --- Two-column: Nationalities + Outcomes ---
-        col_left, col_right = st.columns(2)
-
-        # Always need case join for nationality
-        where_nat, needs_tables_nat = build_where("p", table_type="proc")
-        needs_tables_nat.add("a_tblcase")
-        from_nat = _proc_from("p", "c", needs_tables_nat)
-
-        with col_left:
-            if _is_table_active("a_tblcase"):
-                nat_sql = f"""
-                    SELECT n.NAT_NAME as nationality, COUNT(*) as cases
-                    FROM {from_nat}
-                    LEFT JOIN tbllookupnationality n ON c.NAT = n.NAT_CODE
-                    WHERE {where_nat} AND n.NAT_NAME IS NOT NULL
-                    GROUP BY 1 ORDER BY 2 DESC LIMIT 10
-                """
-                nat_df = run_query(nat_sql)
-                if not nat_df.empty:
-                    n = len(nat_df)
-                    bar_colors = [f"rgba(59,130,246,{0.4 + 0.6 * (n - i) / n})" for i in range(n)]
-                    fig = go.Figure(go.Bar(
-                        x=nat_df["cases"], y=nat_df["nationality"], orientation="h",
-                        marker=dict(color=bar_colors, cornerradius=6),
-                        hovertemplate="%{y}<br><b>%{x:,.0f} cases</b><extra></extra>",
-                    ))
-                    fig.update_layout(
-                        height=420, template=PLOTLY_TEMPLATE,
-                        title=dict(text="Top 10 Nationalities", font=dict(size=14, color=TEXT_PRIMARY)),
-                        yaxis=dict(autorange="reversed"), showlegend=False,
-                    )
-                    st.plotly_chart(fig, use_container_width=True, key="exec_nat")
-            else:
-                _table_required_message("Cases")
-
-        with col_right:
-            dec_sql = f"""
-                SELECT d.strDecDescription as outcome, COUNT(*) as cases
+@st.cache_data(ttl=300)
+def _run_top_n(table_name: str, alias: str, field: str, where_clause: str,
+               from_clause: str, lookup_key: str | None = None, limit: int = 15) -> pd.DataFrame:
+    """Generate top-N value counts for a field, with optional lookup resolution."""
+    lookup = LOOKUPS.get(lookup_key, {}) if lookup_key else {}
+    if lookup_key and lookup:
+        # Find lookup table info from FIELD_META
+        fmeta = FIELD_META.get(table_name, {}).get(field, {})
+        lk_table = fmeta.get("lookup_table")
+        lk_code = fmeta.get("code_col")
+        lk_desc = fmeta.get("desc_col")
+        if lk_table and lk_code and lk_desc:
+            sql = f"""
+                SELECT COALESCE(lk."{lk_desc}", {alias}."{field}") as label,
+                       COUNT(*) as count
                 FROM {from_clause}
-                LEFT JOIN tbllookupcourtdecision d ON p.DEC_CODE = d.strDecCode
-                    AND p.CASE_TYPE = d.strCaseType
-                WHERE {where} AND d.strDecDescription IS NOT NULL
-                GROUP BY 1 ORDER BY 2 DESC LIMIT 8
+                LEFT JOIN "{lk_table}" lk ON {alias}."{field}" = lk."{lk_code}"
+                WHERE {where_clause} AND {alias}."{field}" IS NOT NULL
+                GROUP BY 1 ORDER BY 2 DESC LIMIT {limit}
             """
-            dec_df = run_query(dec_sql)
-            if not dec_df.empty:
-                total = dec_df["cases"].sum()
-                fig = _make_donut(dec_df, "cases", "outcome", "Case Outcome Breakdown", 420,
-                                  center_text=_fmt_number(total))
-                st.plotly_chart(fig, use_container_width=True, key="exec_donut")
+            return run_query(sql)
+    # Fallback: no lookup join
+    sql = f"""
+        SELECT {alias}."{field}" as label, COUNT(*) as count
+        FROM {from_clause}
+        WHERE {where_clause} AND {alias}."{field}" IS NOT NULL
+        GROUP BY 1 ORDER BY 2 DESC LIMIT {limit}
+    """
+    return run_query(sql)
 
 
-# ===== TAB 2: Case Outcomes ==================================================
-with tab_outcomes:
-    if not _is_table_active("b_tblproceeding"):
-        _table_required_message("Proceedings")
+@st.cache_data(ttl=300)
+def _run_rate_over_time(table_name: str, alias: str, field: str, date_field: str,
+                        rate_value: str, where_clause: str, from_clause: str) -> pd.DataFrame:
+    """Generate a rate-over-time chart (e.g., in absentia rate)."""
+    needs_cast = _needs_try_cast(table_name)
+    if needs_cast:
+        date_expr = f'DATE_TRUNC(\'quarter\', TRY_CAST({alias}."{date_field}" AS TIMESTAMP))'
     else:
-        where, needs_tables = build_where("p", table_type="proc")
-        from_clause = _proc_from("p", "c", needs_tables)
-
-        # --- Grant vs Denial rate over time ---
-        gd_sql = f"""
-            SELECT
-                DATE_TRUNC('quarter', TRY_CAST(p."{_proc_date}" AS TIMESTAMP)) as quarter,
-                SUM(CASE WHEN p.DEC_CODE IN ('G','A') THEN 1 ELSE 0 END) as grants,
-                SUM(CASE WHEN p.DEC_CODE IN ('D','R','X') THEN 1 ELSE 0 END) as denials,
-                ROUND(100.0 * SUM(CASE WHEN p.DEC_CODE IN ('G','A') THEN 1 ELSE 0 END)
-                    / NULLIF(SUM(CASE WHEN p.DEC_CODE IN ('G','A','D','R','X') THEN 1 ELSE 0 END), 0), 1) as grant_rate
-            FROM {from_clause}
-            WHERE {where}
-            GROUP BY 1 ORDER BY 1
-        """
-        gd_df = run_query(gd_sql)
-        if not gd_df.empty:
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(
-                x=gd_df["quarter"], y=gd_df["grants"], name="Grants",
-                mode="lines", fill="tozeroy",
-                line=dict(color=ACCENT_GREEN, width=2),
-                fillcolor="rgba(16,185,129,0.1)",
-                stackgroup="one",
-                hovertemplate="Grants: <b>%{y:,.0f}</b><extra></extra>",
-            ))
-            fig.add_trace(go.Scatter(
-                x=gd_df["quarter"], y=gd_df["denials"], name="Denials",
-                mode="lines", fill="tonexty",
-                line=dict(color=ACCENT_RED, width=2),
-                fillcolor="rgba(239,68,68,0.1)",
-                stackgroup="one",
-                hovertemplate="Denials: <b>%{y:,.0f}</b><extra></extra>",
-            ))
-            fig.update_layout(
-                height=380, template=PLOTLY_TEMPLATE,
-                title=dict(text="Grant vs Denial Volume Over Time", font=dict(size=14)),
-            )
-            st.plotly_chart(fig, use_container_width=True, key="out_gd_vol")
-
-        # Grant rate trend line
-        if not gd_df.empty:
-            fig2 = go.Figure()
-            fig2.add_trace(go.Scatter(
-                x=gd_df["quarter"], y=gd_df["grant_rate"],
-                mode="lines+markers",
-                line=dict(color=ACCENT_BLUE, width=3),
-                marker=dict(size=5, color=ACCENT_BLUE),
-                fill="tozeroy",
-                fillcolor="rgba(59,130,246,0.06)",
-                hovertemplate="%{x|%b %Y}<br>Grant Rate: <b>%{y:.1f}%</b><extra></extra>",
-            ))
-            fig2.update_layout(
-                height=300, template=PLOTLY_TEMPLATE,
-                title=dict(text="Grant Rate Trend (%)", font=dict(size=14)),
-                yaxis=dict(ticksuffix="%"),
-            )
-            st.plotly_chart(fig2, use_container_width=True, key="out_gr_trend")
-
-        st.markdown("")
-
-        # --- In Absentia rate ---
-        abs_sql = f"""
-            SELECT
-                DATE_TRUNC('quarter', TRY_CAST(p."{_proc_date}" AS TIMESTAMP)) as quarter,
-                SUM(CASE WHEN p.ABSENTIA = 'Y' THEN 1 ELSE 0 END) as absentia,
-                COUNT(*) as total,
-                ROUND(100.0 * SUM(CASE WHEN p.ABSENTIA = 'Y' THEN 1 ELSE 0 END) / COUNT(*), 1) as absentia_rate
-            FROM {from_clause}
-            WHERE {where}
-            GROUP BY 1 ORDER BY 1
-        """
-        abs_df = run_query(abs_sql)
-        if not abs_df.empty:
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(
-                x=abs_df["quarter"], y=abs_df["absentia_rate"],
-                mode="lines", line=dict(color=ACCENT_AMBER, width=2.5),
-                fill="tozeroy", fillcolor="rgba(245,158,11,0.08)",
-                hovertemplate="%{x|%b %Y}<br>In Absentia: <b>%{y:.1f}%</b><extra></extra>",
-            ))
-            avg_rate = abs_df["absentia_rate"].mean()
-            fig.add_hline(y=avg_rate, line_dash="dot", line_color=TEXT_SECONDARY,
-                          annotation_text=f"Avg: {avg_rate:.1f}%",
-                          annotation_position="top right")
-            fig.update_layout(
-                height=300, template=PLOTLY_TEMPLATE,
-                title=dict(text="In Absentia Order Rate", font=dict(size=14)),
-                yaxis=dict(ticksuffix="%"),
-            )
-            st.plotly_chart(fig, use_container_width=True, key="out_absentia")
-
-        st.markdown("")
-
-        # --- Decision breakdown table ---
-        dec_tbl_sql = f"""
-            SELECT
-                d.strDecDescription as decision,
-                COUNT(*) as total_cases,
-                SUM(CASE WHEN p.DEC_CODE IN ('G','A') THEN 1 ELSE 0 END) as grants,
-                SUM(CASE WHEN p.DEC_CODE IN ('D','R','X') THEN 1 ELSE 0 END) as denials,
-                ROUND(100.0 * SUM(CASE WHEN p.DEC_CODE IN ('G','A') THEN 1 ELSE 0 END)
-                    / NULLIF(SUM(CASE WHEN p.DEC_CODE IN ('G','A','D','R','X') THEN 1 ELSE 0 END), 0), 1) as grant_rate_pct
-            FROM {from_clause}
-            LEFT JOIN tbllookupcourtdecision d ON p.DEC_CODE = d.strDecCode
-                AND p.CASE_TYPE = d.strCaseType
-            WHERE {where} AND d.strDecDescription IS NOT NULL
-            GROUP BY 1
-            ORDER BY total_cases DESC
-            LIMIT 20
-        """
-        dec_tbl_df = run_query(dec_tbl_sql)
-        if not dec_tbl_df.empty:
-            st.markdown('<p class="section-header">Decision Breakdown</p>', unsafe_allow_html=True)
-            st.dataframe(
-                dec_tbl_df,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "decision": st.column_config.TextColumn("Decision"),
-                    "total_cases": st.column_config.NumberColumn("Total Cases", format="%d"),
-                    "grants": st.column_config.NumberColumn("Grants", format="%d"),
-                    "denials": st.column_config.NumberColumn("Denials", format="%d"),
-                    "grant_rate_pct": st.column_config.ProgressColumn(
-                        "Grant Rate", min_value=0, max_value=100, format="%.1f%%"
-                    ),
-                },
-            )
-
-        # --- Outcome by nationality heatmap ---
-        if _is_table_active("a_tblcase"):
-            where_nat_out, needs_tables_nat_out = build_where("p", table_type="proc")
-            needs_tables_nat_out.add("a_tblcase")
-            from_nat_out = _proc_from("p", "c", needs_tables_nat_out)
-
-            # Derive date constraints for subquery
-            _date_from_str = "2020-01-01"
-            _date_to_str = date.today().strftime("%Y-%m-%d")
-            for _fk2, _fv2 in st.session_state.filters.items():
-                if _fk2.startswith("b_tblproceeding.") and isinstance(_fv2, dict):
-                    _date_from_str = _fv2.get("from", _date_from_str)
-                    _date_to_str = _fv2.get("to", _date_to_str)
-                    break
-
-            heat_sql = f"""
-                WITH top_nats AS (
-                    SELECT c.NAT, n.NAT_NAME
-                    FROM {from_nat_out}
-                    LEFT JOIN tbllookupnationality n ON c.NAT = n.NAT_CODE
-                    WHERE {where_nat_out} AND n.NAT_NAME IS NOT NULL
-                    GROUP BY 1, 2 ORDER BY COUNT(*) DESC LIMIT 12
-                ),
-                top_decs AS (
-                    SELECT d.strDecDescription
-                    FROM b_tblproceeding p2
-                    LEFT JOIN tbllookupcourtdecision d ON p2.DEC_CODE = d.strDecCode
-                        AND p2.CASE_TYPE = d.strCaseType
-                    WHERE TRY_CAST(p2."{_proc_date}" AS TIMESTAMP) >= '{_date_from_str}'
-                        AND TRY_CAST(p2."{_proc_date}" AS TIMESTAMP) <= '{_date_to_str}'
-                        AND p2."{_proc_date}" IS NOT NULL
-                        AND d.strDecDescription IS NOT NULL
-                    GROUP BY 1 ORDER BY COUNT(*) DESC LIMIT 5
-                )
-                SELECT n.NAT_NAME as nationality, d.strDecDescription as outcome, COUNT(*) as cases
-                FROM {from_nat_out}
-                LEFT JOIN tbllookupnationality n ON c.NAT = n.NAT_CODE
-                LEFT JOIN tbllookupcourtdecision d ON p.DEC_CODE = d.strDecCode
-                    AND p.CASE_TYPE = d.strCaseType
-                WHERE {where_nat_out}
-                    AND n.NAT_NAME IN (SELECT NAT_NAME FROM top_nats)
-                    AND d.strDecDescription IN (SELECT strDecDescription FROM top_decs)
-                GROUP BY 1, 2
-                ORDER BY 1, 2
-            """
-            heat_df = run_query(heat_sql)
-            if not heat_df.empty:
-                st.markdown('<p class="section-header">Outcomes by Nationality</p>', unsafe_allow_html=True)
-                pivot = heat_df.pivot_table(index="nationality", columns="outcome", values="cases", fill_value=0)
-                fig = go.Figure(go.Heatmap(
-                    z=pivot.values,
-                    x=pivot.columns.tolist(),
-                    y=pivot.index.tolist(),
-                    colorscale=[[0, "#F8FAFC"], [0.5, "#93C5FD"], [1, "#1D4ED8"]],
-                    hovertemplate="%{y}<br>%{x}<br><b>%{z:,.0f} cases</b><extra></extra>",
-                    showscale=True,
-                    colorbar=dict(title="Cases", thickness=12, len=0.6),
-                ))
-                fig.update_layout(
-                    height=max(350, len(pivot) * 35 + 100),
-                    template=PLOTLY_TEMPLATE,
-                    xaxis=dict(side="top"),
-                )
-                st.plotly_chart(fig, use_container_width=True, key="out_heatmap")
+        date_expr = f'DATE_TRUNC(\'quarter\', {alias}."{date_field}")'
+    sql = f"""
+        SELECT {date_expr} as quarter,
+               ROUND(100.0 * SUM(CASE WHEN {alias}."{field}" = '{rate_value}' THEN 1 ELSE 0 END) / COUNT(*), 1) as rate,
+               COUNT(*) as total
+        FROM {from_clause}
+        WHERE {where_clause} AND {alias}."{date_field}" IS NOT NULL
+        GROUP BY 1 ORDER BY 1
+    """
+    return run_query(sql)
 
 
-# ===== TAB 3: Court Performance ==============================================
-with tab_courts:
-    if not _is_table_active("b_tblproceeding"):
-        _table_required_message("Proceedings")
-    else:
-        where, needs_tables = build_where("p", table_type="proc")
-        from_clause = _proc_from("p", "c", needs_tables)
+def _build_table_where(table_name: str, alias: str) -> tuple[str, str]:
+    """Build WHERE clause and FROM clause for querying a specific table directly.
 
-        # --- Court comparison table ---
-        court_sql = f"""
-            SELECT
-                l.BASE_CITY_NAME as court,
-                p.BASE_CITY_CODE as code,
-                COUNT(*) as caseload,
-                SUM(CASE WHEN p.DEC_CODE IN ('G','A') THEN 1 ELSE 0 END) as grants,
-                SUM(CASE WHEN p.DEC_CODE IN ('D','R','X') THEN 1 ELSE 0 END) as denials,
-                ROUND(100.0 * SUM(CASE WHEN p.DEC_CODE IN ('G','A') THEN 1 ELSE 0 END)
-                    / NULLIF(SUM(CASE WHEN p.DEC_CODE IN ('G','A','D','R','X') THEN 1 ELSE 0 END), 0), 1) as grant_rate,
-                ROUND(AVG(CASE
-                    WHEN TRY_CAST(p.COMP_DATE AS TIMESTAMP) IS NOT NULL
-                         AND TRY_CAST(p.OSC_DATE AS TIMESTAMP) IS NOT NULL
-                    THEN DATEDIFF('day', TRY_CAST(p.OSC_DATE AS TIMESTAMP), TRY_CAST(p.COMP_DATE AS TIMESTAMP))
-                    ELSE NULL END), 0) as avg_days,
-                COUNT(DISTINCT p.IJ_CODE) as judge_count
-            FROM {from_clause}
-            LEFT JOIN tbllookupbasecity l ON p.BASE_CITY_CODE = l.BASE_CITY_CODE
-            WHERE {where} AND l.BASE_CITY_NAME IS NOT NULL
-            GROUP BY 1, 2
-            HAVING COUNT(*) >= 100
-            ORDER BY caseload DESC
-        """
-        court_df = run_query(court_sql)
+    Unlike build_where() which assumes proceedings as base, this builds
+    filters relative to the given table. Only applies user-set filters
+    (no automatic date range constraint).
+    """
+    conditions: list[str] = []
+    from_clause = f'"{table_name}" {alias}'
+    joined_tables: set[str] = set()
 
-        if not court_df.empty:
-            st.markdown('<p class="section-header">Court Comparison</p>', unsafe_allow_html=True)
-            display_court_df = court_df.drop(columns=["code"])
-            st.dataframe(
-                display_court_df,
-                use_container_width=True,
-                hide_index=True,
-                height=min(len(display_court_df) * 35 + 38, 600),
-                column_config={
-                    "court": st.column_config.TextColumn("Court"),
-                    "caseload": st.column_config.NumberColumn("Caseload", format="%d"),
-                    "grants": st.column_config.NumberColumn("Grants", format="%d"),
-                    "denials": st.column_config.NumberColumn("Denials", format="%d"),
-                    "grant_rate": st.column_config.ProgressColumn(
-                        "Grant Rate %", min_value=0, max_value=100, format="%.1f%%"
-                    ),
-                    "avg_days": st.column_config.NumberColumn("Avg Days", format="%d"),
-                    "judge_count": st.column_config.NumberColumn("Judges", format="%d"),
-                },
-            )
+    for filter_key, filter_value in st.session_state.filters.items():
+        ftable, ffield = filter_key.split(".", 1)
+        fmeta = FIELD_META.get(ftable, {}).get(ffield, {})
 
-            st.markdown("")
+        # Determine alias
+        if ftable == table_name:
+            falias = alias
+        else:
+            # Need to join this table — only possible if both share IDNCASE
+            if ftable not in joined_tables:
+                join_template = TABLE_JOINS.get(ftable)
+                if not join_template:
+                    continue  # Can't join, skip this filter
+                nt_alias = TABLE_META[ftable]["alias"]
+                from_clause += "\n        " + join_template.format(alias=nt_alias, base=alias)
+                joined_tables.add(ftable)
+            falias = TABLE_META[ftable]["alias"]
 
-            # Treemap of caseload by court
-            top_courts = court_df.head(30)
-            fig = go.Figure(go.Treemap(
-                labels=top_courts["court"],
-                parents=[""] * len(top_courts),
-                values=top_courts["caseload"],
-                marker=dict(
-                    colors=top_courts["grant_rate"],
-                    colorscale=[[0, ACCENT_RED], [0.5, ACCENT_AMBER], [1, ACCENT_GREEN]],
-                    showscale=True,
-                    colorbar=dict(title="Grant Rate %", thickness=12, len=0.6),
-                ),
-                hovertemplate="<b>%{label}</b><br>Caseload: %{value:,.0f}<br>Grant Rate: %{color:.1f}%<extra></extra>",
-                textinfo="label+value",
-                textfont=dict(size=12),
-            ))
-            fig.update_layout(
-                height=500, template=PLOTLY_TEMPLATE,
-                title=dict(text="Caseload by Court (colored by grant rate)", font=dict(size=14)),
-                margin=dict(l=8, r=8, t=48, b=8),
-            )
-            st.plotly_chart(fig, use_container_width=True, key="court_treemap")
+        needs_cast = ftable in ALL_VARCHAR_TABLES
 
-        st.markdown("")
+        # Detect filter type
+        if isinstance(filter_value, dict):
+            ft = filter_value.get("type", "date")
+            if ft == "date":
+                date_from = filter_value.get("from", "2000-01-01")
+                date_to = filter_value.get("to", date.today().strftime("%Y-%m-%d"))
+                if needs_cast:
+                    conditions.append(f'TRY_CAST({falias}."{ffield}" AS TIMESTAMP) >= \'{date_from}\'')
+                    conditions.append(f'TRY_CAST({falias}."{ffield}" AS TIMESTAMP) <= \'{date_to}\'')
+                else:
+                    conditions.append(f'{falias}."{ffield}" >= \'{date_from}\'')
+                    conditions.append(f'{falias}."{ffield}" <= \'{date_to}\'')
+                conditions.append(f'{falias}."{ffield}" IS NOT NULL')
+            elif ft == "number":
+                nmin = filter_value.get("min", 0)
+                nmax = filter_value.get("max", 999999999)
+                if needs_cast:
+                    conditions.append(f'TRY_CAST({falias}."{ffield}" AS DOUBLE) >= {nmin}')
+                    conditions.append(f'TRY_CAST({falias}."{ffield}" AS DOUBLE) <= {nmax}')
+                else:
+                    conditions.append(f'{falias}."{ffield}" >= {nmin}')
+                    conditions.append(f'{falias}."{ffield}" <= {nmax}')
+                conditions.append(f'{falias}."{ffield}" IS NOT NULL')
+        elif isinstance(filter_value, list) and filter_value:
+            quoted = ", ".join(f"'{v}'" for v in filter_value)
+            conditions.append(f'{falias}."{ffield}" IN ({quoted})')
 
-        # --- Court-level trend ---
-        st.markdown('<p class="section-header">Court Trend Over Time</p>', unsafe_allow_html=True)
-        if not court_df.empty:
-            court_options = {row["code"]: row["court"] for _, row in court_df.iterrows()}
-            selected_court_code = st.selectbox(
-                "Select a court",
-                options=list(court_options.keys()),
-                format_func=lambda x: court_options.get(x, x),
-                key="court_trend_select",
-            )
-            if selected_court_code:
-                ct_trend_sql = f"""
-                    SELECT
-                        DATE_TRUNC('quarter', TRY_CAST(p."{_proc_date}" AS TIMESTAMP)) as quarter,
-                        COUNT(*) as cases,
-                        ROUND(100.0 * SUM(CASE WHEN p.DEC_CODE IN ('G','A') THEN 1 ELSE 0 END)
-                            / NULLIF(SUM(CASE WHEN p.DEC_CODE IN ('G','A','D','R','X') THEN 1 ELSE 0 END), 0), 1) as grant_rate
-                    FROM {from_clause}
-                    WHERE {where} AND p.BASE_CITY_CODE = '{selected_court_code}'
-                    GROUP BY 1 ORDER BY 1
-                """
-                ct_trend_df = run_query(ct_trend_sql)
-                if not ct_trend_df.empty:
-                    fig = go.Figure()
-                    fig.add_trace(go.Bar(
-                        x=ct_trend_df["quarter"], y=ct_trend_df["cases"],
-                        name="Cases", marker=dict(color=ACCENT_BLUE, cornerradius=4, opacity=0.6),
-                        hovertemplate="%{x|%b %Y}<br>Cases: <b>%{y:,.0f}</b><extra></extra>",
-                        yaxis="y",
-                    ))
-                    fig.add_trace(go.Scatter(
-                        x=ct_trend_df["quarter"], y=ct_trend_df["grant_rate"],
-                        name="Grant Rate %", mode="lines+markers",
-                        line=dict(color=ACCENT_GREEN, width=3),
-                        marker=dict(size=6),
-                        hovertemplate="%{x|%b %Y}<br>Grant Rate: <b>%{y:.1f}%</b><extra></extra>",
-                        yaxis="y2",
-                    ))
-                    fig.update_layout(
-                        height=380, template=PLOTLY_TEMPLATE,
-                        title=dict(text=f"{court_options.get(selected_court_code, '')} -- Cases & Grant Rate",
-                                   font=dict(size=14)),
-                        yaxis=dict(title="Cases", side="left"),
-                        yaxis2=dict(title="Grant Rate %", side="right", overlaying="y",
-                                    ticksuffix="%", showgrid=False),
-                        barmode="overlay",
-                    )
-                    st.plotly_chart(fig, use_container_width=True, key="court_trend_chart")
+    where_clause = " AND ".join(conditions) if conditions else "1=1"
+    return where_clause, from_clause
 
 
-# ===== TAB 4: Judge Analytics ================================================
-with tab_judges:
-    if not _is_table_active("b_tblproceeding"):
-        _table_required_message("Proceedings")
-    else:
-        where, needs_tables = build_where("p", table_type="proc")
-        from_clause = _proc_from("p", "c", needs_tables)
+def render_table_analysis(table_name: str):
+    """Render auto-generated analysis charts for a table tab."""
+    meta = TABLE_META[table_name]
+    alias = meta["alias"]
+    analysis = TABLE_ANALYSIS.get(table_name, {"kpi_extras": [], "kpi_extra_labels": [], "charts": []})
 
-        # --- Judge scorecard ---
-        judge_sql = f"""
-            SELECT
-                j.JUDGE_NAME as judge,
-                l.BASE_CITY_NAME as court,
-                p.IJ_CODE as judge_code,
-                COUNT(*) as caseload,
-                SUM(CASE WHEN p.DEC_CODE IN ('G','A') THEN 1 ELSE 0 END) as grants,
-                SUM(CASE WHEN p.DEC_CODE IN ('D','R','X') THEN 1 ELSE 0 END) as denials,
-                ROUND(100.0 * SUM(CASE WHEN p.DEC_CODE IN ('G','A') THEN 1 ELSE 0 END)
-                    / NULLIF(SUM(CASE WHEN p.DEC_CODE IN ('G','A','D','R','X') THEN 1 ELSE 0 END), 0), 1) as grant_rate,
-                ROUND(100.0 * SUM(CASE WHEN p.DEC_CODE IN ('D','R','X') THEN 1 ELSE 0 END)
-                    / NULLIF(SUM(CASE WHEN p.DEC_CODE IN ('G','A','D','R','X') THEN 1 ELSE 0 END), 0), 1) as denial_rate,
-                ROUND(AVG(CASE
-                    WHEN TRY_CAST(p.COMP_DATE AS TIMESTAMP) IS NOT NULL
-                         AND TRY_CAST(p.OSC_DATE AS TIMESTAMP) IS NOT NULL
-                    THEN DATEDIFF('day', TRY_CAST(p.OSC_DATE AS TIMESTAMP), TRY_CAST(p.COMP_DATE AS TIMESTAMP))
-                    ELSE NULL END), 0) as avg_days
-            FROM {from_clause}
-            LEFT JOIN tbllookupjudge j ON p.IJ_CODE = j.JUDGE_CODE
-            LEFT JOIN tbllookupbasecity l ON p.BASE_CITY_CODE = l.BASE_CITY_CODE
-            WHERE {where}
-                AND j.JUDGE_NAME IS NOT NULL AND j.JUDGE_NAME != '<All Judges>'
-            GROUP BY 1, 2, 3
-            HAVING COUNT(*) >= 50
-            ORDER BY caseload DESC
-        """
-        judge_df = run_query(judge_sql)
+    # Build WHERE and FROM specific to this table
+    where_clause, from_clause = _build_table_where(table_name, alias)
 
-        if not judge_df.empty:
-            st.markdown('<p class="section-header">Judge Scorecard</p>', unsafe_allow_html=True)
-            display_judge_df = judge_df.drop(columns=["judge_code"])
-            st.dataframe(
-                display_judge_df,
-                use_container_width=True,
-                hide_index=True,
-                height=min(len(display_judge_df) * 35 + 38, 600),
-                column_config={
-                    "judge": st.column_config.TextColumn("Judge"),
-                    "court": st.column_config.TextColumn("Court"),
-                    "caseload": st.column_config.NumberColumn("Caseload", format="%d"),
-                    "grants": st.column_config.NumberColumn("Grants", format="%d"),
-                    "denials": st.column_config.NumberColumn("Denials", format="%d"),
-                    "grant_rate": st.column_config.ProgressColumn(
-                        "Grant Rate %", min_value=0, max_value=100, format="%.1f%%"
-                    ),
-                    "denial_rate": st.column_config.ProgressColumn(
-                        "Denial Rate %", min_value=0, max_value=100, format="%.1f%%"
-                    ),
-                    "avg_days": st.column_config.NumberColumn("Avg Days", format="%d"),
-                },
-            )
+    # --- KPIs ---
+    extra_selects = [s.replace("{a}", alias) for s in analysis.get("kpi_extras", [])]
+    kpi_df = _run_table_kpi(table_name, alias, where_clause, from_clause, extra_selects)
 
-            st.markdown("")
+    if not kpi_df.empty:
+        k = kpi_df.iloc[0]
+        num_kpis = 2 + len(analysis.get("kpi_extra_labels", []))
+        kpi_cols = st.columns(num_kpis)
+        with kpi_cols[0]:
+            st.metric(f"Total {meta['label']}", _fmt_number(k["total_rows"]))
+        with kpi_cols[1]:
+            st.metric("Unique Cases", _fmt_number(k["unique_cases"]))
+        for i, extra_label in enumerate(analysis.get("kpi_extra_labels", [])):
+            with kpi_cols[2 + i]:
+                col_name = list(k.index)[2 + i]
+                st.metric(extra_label, _fmt_number(k[col_name]))
 
-            # Grant rate distribution histogram
-            col_hist, col_topbot = st.columns(2)
+    st.markdown("")
 
-            with col_hist:
-                fig = go.Figure(go.Histogram(
-                    x=judge_df["grant_rate"].dropna(), nbinsx=25,
-                    marker=dict(color=ACCENT_PURPLE, cornerradius=4),
-                    hovertemplate="Grant Rate: %{x:.0f}%<br>Judges: <b>%{y}</b><extra></extra>",
-                ))
-                fig.update_layout(
-                    height=380, template=PLOTLY_TEMPLATE,
-                    title=dict(text="Grant Rate Distribution Across Judges", font=dict(size=14)),
-                    xaxis=dict(title="Grant Rate %", ticksuffix="%"),
-                    yaxis=dict(title="Number of Judges"),
-                    showlegend=False,
-                )
-                st.plotly_chart(fig, use_container_width=True, key="judge_hist")
+    # --- Charts ---
+    charts = analysis.get("charts", [])
+    # Render charts in 2-column layout
+    chart_pairs = [charts[i:i+2] for i in range(0, len(charts), 2)]
 
-            with col_topbot:
-                judge_sorted = judge_df.dropna(subset=["grant_rate"]).sort_values("grant_rate")
-                bottom10 = judge_sorted.head(10).copy()
-                top10 = judge_sorted.tail(10).copy()
-                combined = pd.concat([top10, bottom10])
-                combined = combined.sort_values("grant_rate")
+    for pair in chart_pairs:
+        cols = st.columns(len(pair))
+        for ci, chart_spec in enumerate(pair):
+            with cols[ci]:
+                ctype = chart_spec["chart_type"]
+                field = chart_spec["field"]
+                title = chart_spec["title"]
 
-                colors = [ACCENT_GREEN if r >= judge_sorted["grant_rate"].median() else ACCENT_RED
-                          for r in combined["grant_rate"]]
+                if ctype == "time_series":
+                    df = _run_time_series(table_name, alias, field, where_clause, from_clause)
+                    if not df.empty:
+                        color_idx = ci % len(CHART_COLORS)
+                        fig = _make_area_chart(df, "month", "count", CHART_COLORS[color_idx], title, 350)
+                        st.plotly_chart(fig, use_container_width=True,
+                                        key=f"tab_{table_name}_{field}_ts")
+                    else:
+                        st.caption(f"No data for {title}")
 
-                fig = go.Figure(go.Bar(
-                    x=combined["grant_rate"], y=combined["judge"], orientation="h",
-                    marker=dict(color=colors, cornerradius=4),
-                    hovertemplate="%{y}<br>Grant Rate: <b>%{x:.1f}%</b><extra></extra>",
-                ))
-                fig.update_layout(
-                    height=380, template=PLOTLY_TEMPLATE,
-                    title=dict(text="Top 10 & Bottom 10 by Grant Rate", font=dict(size=14)),
-                    xaxis=dict(ticksuffix="%"),
-                    showlegend=False,
-                )
-                st.plotly_chart(fig, use_container_width=True, key="judge_topbot")
+                elif ctype == "top_n":
+                    lookup_key = chart_spec.get("lookup")
+                    df = _run_top_n(table_name, alias, field, where_clause, from_clause, lookup_key)
+                    if not df.empty:
+                        n = len(df)
+                        color_idx = ci % len(CHART_COLORS)
+                        base_color = CHART_COLORS[color_idx]
+                        r, g, b = int(base_color[1:3], 16), int(base_color[3:5], 16), int(base_color[5:7], 16)
+                        bar_colors = [f"rgba({r},{g},{b},{0.4 + 0.6 * (n - i) / n})" for i in range(n)]
+                        fig = go.Figure(go.Bar(
+                            x=df["count"], y=df["label"], orientation="h",
+                            marker=dict(color=bar_colors, cornerradius=6),
+                            hovertemplate="%{y}<br><b>%{x:,.0f}</b><extra></extra>",
+                        ))
+                        fig.update_layout(
+                            height=max(300, n * 28 + 80), template=PLOTLY_TEMPLATE,
+                            title=dict(text=title, font=dict(size=14, color=TEXT_PRIMARY)),
+                            yaxis=dict(autorange="reversed"), showlegend=False,
+                        )
+                        st.plotly_chart(fig, use_container_width=True,
+                                        key=f"tab_{table_name}_{field}_bar")
+                    else:
+                        st.caption(f"No data for {title}")
 
-            # --- Individual judge trend ---
-            st.markdown("")
-            st.markdown('<p class="section-header">Individual Judge Trend</p>', unsafe_allow_html=True)
-            judge_options = {row["judge_code"]: f"{row['judge']} ({row['court'] or 'Unknown'})"
-                            for _, row in judge_df.iterrows()}
-            selected_judge_code = st.selectbox(
-                "Select a judge",
-                options=list(judge_options.keys()),
-                format_func=lambda x: judge_options.get(x, x),
-                key="judge_trend_select",
-            )
-            if selected_judge_code:
-                jt_sql = f"""
-                    SELECT
-                        DATE_TRUNC('quarter', TRY_CAST(p."{_proc_date}" AS TIMESTAMP)) as quarter,
-                        COUNT(*) as cases,
-                        ROUND(100.0 * SUM(CASE WHEN p.DEC_CODE IN ('G','A') THEN 1 ELSE 0 END)
-                            / NULLIF(SUM(CASE WHEN p.DEC_CODE IN ('G','A','D','R','X') THEN 1 ELSE 0 END), 0), 1) as grant_rate
-                    FROM {from_clause}
-                    WHERE {where} AND p.IJ_CODE = '{selected_judge_code}'
-                    GROUP BY 1 ORDER BY 1
-                """
-                jt_df = run_query(jt_sql)
-                if not jt_df.empty:
-                    fig = go.Figure()
-                    fig.add_trace(go.Bar(
-                        x=jt_df["quarter"], y=jt_df["cases"],
-                        name="Cases", marker=dict(color=ACCENT_BLUE, cornerradius=4, opacity=0.5),
-                        yaxis="y",
-                        hovertemplate="%{x|%b %Y}<br>Cases: <b>%{y:,.0f}</b><extra></extra>",
-                    ))
-                    fig.add_trace(go.Scatter(
-                        x=jt_df["quarter"], y=jt_df["grant_rate"],
-                        name="Grant Rate %", mode="lines+markers",
-                        line=dict(color=ACCENT_GREEN, width=3),
-                        marker=dict(size=6),
-                        yaxis="y2",
-                        hovertemplate="%{x|%b %Y}<br>Grant Rate: <b>%{y:.1f}%</b><extra></extra>",
-                    ))
-                    fig.update_layout(
-                        height=380, template=PLOTLY_TEMPLATE,
-                        title=dict(text=judge_options.get(selected_judge_code, ""),
-                                   font=dict(size=14)),
-                        yaxis=dict(title="Cases", side="left"),
-                        yaxis2=dict(title="Grant Rate %", side="right", overlaying="y",
-                                    ticksuffix="%", showgrid=False),
-                        barmode="overlay",
-                    )
-                    st.plotly_chart(fig, use_container_width=True, key="judge_trend_chart")
+                elif ctype == "rate_over_time":
+                    date_field = chart_spec["date_field"]
+                    rate_value = chart_spec["rate_value"]
+                    df = _run_rate_over_time(table_name, alias, field, date_field, rate_value,
+                                             where_clause, from_clause)
+                    if not df.empty:
+                        fig = go.Figure()
+                        fig.add_trace(go.Scatter(
+                            x=df["quarter"], y=df["rate"],
+                            mode="lines", line=dict(color=ACCENT_AMBER, width=2.5),
+                            fill="tozeroy", fillcolor="rgba(245,158,11,0.08)",
+                            hovertemplate="%{x|%b %Y}<br><b>%{y:.1f}%</b><extra></extra>",
+                        ))
+                        avg_rate = df["rate"].mean()
+                        fig.add_hline(y=avg_rate, line_dash="dot", line_color=TEXT_SECONDARY,
+                                      annotation_text=f"Avg: {avg_rate:.1f}%",
+                                      annotation_position="top right")
+                        fig.update_layout(
+                            height=350, template=PLOTLY_TEMPLATE,
+                            title=dict(text=title, font=dict(size=14)),
+                            yaxis=dict(ticksuffix="%"),
+                        )
+                        st.plotly_chart(fig, use_container_width=True,
+                                        key=f"tab_{table_name}_{field}_rate")
+                    else:
+                        st.caption(f"No data for {title}")
 
 
-# ===== TAB 5: Hearings ======================================================
-with tab_hearings:
-    if not _is_table_active("tbl_schedule"):
-        _table_required_message("Hearings")
-    else:
-        where_s, needs_tables_s = build_where("s", table_type="sched")
-        from_sched = _sched_from("s", "c", needs_tables_s)
+# ---------------------------------------------------------------------------
+# Dynamic Tabs
+# ---------------------------------------------------------------------------
 
-        # --- Hearing volume over time ---
-        hvol_sql = f"""
-            SELECT
-                DATE_TRUNC('month', TRY_CAST(s."{_sched_date}" AS TIMESTAMP)) as month,
-                COUNT(*) as hearings
-            FROM {from_sched}
-            WHERE {where_s}
-            GROUP BY 1 ORDER BY 1
-        """
-        hvol_df = run_query(hvol_sql)
-        if not hvol_df.empty:
-            fig = _make_area_chart(hvol_df, "month", "hearings", ACCENT_PURPLE, "Hearing Volume Over Time", 340)
-            st.plotly_chart(fig, use_container_width=True, key="hear_vol")
+# Build tab list: one per active table + Data Explorer + AI Analyst
+_active_table_tabs = [(tn, TABLE_META[tn]["label"]) for tn in st.session_state.active_tables
+                      if tn in TABLE_META]
+_tab_names = [label for _, label in _active_table_tabs] + ["Data Explorer", "AI Analyst"]
 
-        st.markdown("")
+if not _tab_names:
+    _tab_names = ["Data Explorer", "AI Analyst"]
 
-        col_left, col_right = st.columns(2)
+_tabs = st.tabs(_tab_names)
 
-        with col_left:
-            # Calendar type breakdown
-            cal_sql = f"""
-                SELECT
-                    COALESCE(ct.strCalTypeDescription, s.CAL_TYPE) as calendar_type,
-                    COUNT(*) as hearings
-                FROM {from_sched}
-                LEFT JOIN tbllookupcal_type ct ON s.CAL_TYPE = ct.strCalTypeCode
-                WHERE {where_s} AND s.CAL_TYPE IS NOT NULL
-                GROUP BY 1 ORDER BY 2 DESC LIMIT 10
-            """
-            cal_df = run_query(cal_sql)
-            if not cal_df.empty:
-                fig = _make_donut(cal_df, "hearings", "calendar_type",
-                                  "Calendar Type Breakdown", 400,
-                                  center_text=_fmt_number(cal_df["hearings"].sum()))
-                st.plotly_chart(fig, use_container_width=True, key="hear_cal")
+# Render each active table tab
+for i, (tn, label) in enumerate(_active_table_tabs):
+    with _tabs[i]:
+        render_table_analysis(tn)
 
-        with col_right:
-            # Top adjournment reasons
-            adj_sql = f"""
-                SELECT
-                    COALESCE(ac.strDesciption, s.ADJ_RSN) as reason,
-                    COUNT(*) as hearings
-                FROM {from_sched}
-                LEFT JOIN tbladjournmentcodes ac ON s.ADJ_RSN = ac.strcode
-                WHERE {where_s} AND s.ADJ_RSN IS NOT NULL
-                GROUP BY 1 ORDER BY 2 DESC LIMIT 10
-            """
-            adj_df = run_query(adj_sql)
-            if not adj_df.empty:
-                n = len(adj_df)
-                bar_colors = [f"rgba(139,92,246,{0.4 + 0.6 * (n - i) / n})" for i in range(n)]
-                fig = go.Figure(go.Bar(
-                    x=adj_df["hearings"], y=adj_df["reason"], orientation="h",
-                    marker=dict(color=bar_colors, cornerradius=6),
-                    hovertemplate="%{y}<br><b>%{x:,.0f} hearings</b><extra></extra>",
-                ))
-                fig.update_layout(
-                    height=400, template=PLOTLY_TEMPLATE,
-                    title=dict(text="Top 10 Adjournment Reasons", font=dict(size=14, color=TEXT_PRIMARY)),
-                    yaxis=dict(autorange="reversed"), showlegend=False,
-                )
-                st.plotly_chart(fig, use_container_width=True, key="hear_adj")
-
-        # --- Hearing medium breakdown ---
-        med_sql = f"""
-            SELECT
-                COALESCE(s.ADJ_MEDIUM, 'Unknown') as medium,
-                COUNT(*) as hearings
-            FROM {from_sched}
-            WHERE {where_s}
-            GROUP BY 1 ORDER BY 2 DESC LIMIT 10
-        """
-        med_df = run_query(med_sql)
-        if not med_df.empty and len(med_df) > 1:
-            st.markdown("")
-            fig = _make_bar_chart(med_df, "medium", "hearings", ACCENT_GREEN,
-                                  title="Hearings by Medium", height=350)
-            st.plotly_chart(fig, use_container_width=True, key="hear_medium")
+# Data Explorer and AI Analyst are always at the end
+_explore_idx = len(_active_table_tabs)
+_ai_idx = _explore_idx + 1
 
 
-# ===== TAB 6: Data Explorer ==================================================
-with tab_explore:
+# ===== Data Explorer Tab =====================================================
+with _tabs[_explore_idx]:
     st.markdown('<p class="section-header">Custom SQL Explorer</p>', unsafe_allow_html=True)
     st.caption("Query the EOIR database directly. Results capped at 5,000 rows.")
 
@@ -2318,8 +2030,8 @@ GROUP BY 1 ORDER BY 1""",
                         st.plotly_chart(fig, use_container_width=True, key="explore_bar")
 
 
-# ===== TAB 7: AI Analyst =====================================================
-with tab_ai:
+# ===== AI Analyst Tab ========================================================
+with _tabs[_ai_idx]:
     st.markdown('<p class="section-header">AI-Powered Analysis</p>', unsafe_allow_html=True)
     st.caption("Ask questions in plain English. The AI writes SQL, runs it, and explains the results.")
 
