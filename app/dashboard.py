@@ -315,21 +315,35 @@ section[data-testid="stSidebar"] .stButton > button:hover {{
     max-width: 100% !important;
 }}
 
-/* -- Filter modal card -- */
-.filter-modal {{
-    background: white;
+/* -- Filter panel (right drawer) -- */
+.filter-panel {{
+    background: {CARD_BG};
+    border-left: 2px solid #E2E8F0;
     border-radius: 16px;
-    padding: 32px;
-    margin-bottom: 24px;
-    box-shadow: 0 8px 40px rgba(0,0,0,0.15);
-    border: 1px solid #E2E8F0;
-    max-height: 70vh;
-    overflow-y: auto;
-    animation: slideDown 0.2s ease;
+    padding: 24px;
+    box-shadow: -4px 0 24px rgba(0,0,0,0.06);
+    min-height: 60vh;
+    animation: slideIn 0.2s ease;
 }}
-@keyframes slideDown {{
-    from {{ opacity: 0; transform: translateY(-8px); }}
-    to {{ opacity: 1; transform: translateY(0); }}
+@keyframes slideIn {{
+    from {{ opacity: 0; transform: translateX(12px); }}
+    to {{ opacity: 1; transform: translateX(0); }}
+}}
+.filter-panel-header {{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #E2E8F0;
+}}
+.filter-panel-title {{
+    font-size: 1rem;
+    font-weight: 700;
+    color: {TEXT_PRIMARY};
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }}
 
 /* -- Active filter pills -- */
@@ -1158,14 +1172,6 @@ for table_name, meta in TABLE_META.items():
         _save_config(st.session_state.dashboard_config)
         st.rerun()
 
-# -- Filters button (only when tables are active) --
-if st.session_state.active_tables:
-    active_filter_count = len(st.session_state.filters)
-    filter_btn_label = f"\U0001f50d Filters ({active_filter_count} active)" if active_filter_count else "\U0001f50d Filters"
-    if st.sidebar.button(filter_btn_label, key="sb_open_filters", use_container_width=True):
-        st.session_state.show_filter_modal = not st.session_state.show_filter_modal
-        st.rerun()
-
 st.sidebar.divider()
 
 # -- Admin toggle at bottom of sidebar --
@@ -1485,82 +1491,66 @@ def _render_filter_widget(table_name: str, field_name: str, field_info: dict, fi
             del st.session_state.filters[filter_key]
 
 
-def _render_filter_modal():
-    """Render the filter modal overlay in the main area."""
-    if not st.session_state.get("show_filter_modal"):
-        return
+def _render_filter_panel(container):
+    """Render the filter panel inside the given Streamlit container (right column)."""
+    with container:
+        st.markdown('<div class="filter-panel">', unsafe_allow_html=True)
 
-    st.markdown('<div class="filter-modal">', unsafe_allow_html=True)
+        # Header row with close button
+        col_title, col_close = st.columns([5, 1])
+        with col_title:
+            st.markdown('<div class="filter-panel-title">\U0001f50d Filters</div>',
+                        unsafe_allow_html=True)
+        with col_close:
+            if st.button("\u2715", key="close_filters", help="Close filter panel"):
+                st.session_state.show_filter_modal = False
+                st.rerun()
 
-    # Header row
-    col_title, col_close = st.columns([6, 1])
-    with col_title:
-        st.markdown("### \U0001f50d Filters")
-    with col_close:
-        if st.button("\u2715 Close", key="close_filters"):
-            st.session_state.show_filter_modal = False
-            st.rerun()
+        # Search box to find fields
+        field_search = st.text_input(
+            "Search fields...", key="filter_field_search",
+            placeholder="Type to find a field...",
+            label_visibility="collapsed",
+        )
+        field_search_lower = field_search.lower().strip() if field_search else ""
 
-    # Search box to find fields
-    field_search = st.text_input(
-        "Search fields...", key="filter_field_search",
-        placeholder="Type to find a field..."
-    )
-    field_search_lower = field_search.lower().strip() if field_search else ""
+        # For each active table, show its filterable fields
+        for table_name in st.session_state.active_tables:
+            if table_name not in TABLE_META:
+                continue
+            meta = TABLE_META[table_name]
+            fields = FIELD_META.get(table_name, {})
+            hidden_fields = _get_hidden_fields(table_name)
 
-    # For each active table, show its filterable fields
-    for table_name in st.session_state.active_tables:
-        if table_name not in TABLE_META:
-            continue
-        meta = TABLE_META[table_name]
-        fields = FIELD_META.get(table_name, {})
-        hidden_fields = _get_hidden_fields(table_name)
-
-        # Build visible field list
-        field_list = [
-            (k, v) for k, v in fields.items()
-            if k not in hidden_fields
-        ]
-
-        # Apply search filter
-        if field_search_lower:
+            # Build visible field list
             field_list = [
-                (k, v) for k, v in field_list
-                if field_search_lower in v.get("label", k).lower()
-                or field_search_lower in k.lower()
+                (k, v) for k, v in fields.items()
+                if k not in hidden_fields
             ]
 
-        if not field_list:
-            continue
+            # Apply search filter
+            if field_search_lower:
+                field_list = [
+                    (k, v) for k, v in field_list
+                    if field_search_lower in v.get("label", k).lower()
+                    or field_search_lower in k.lower()
+                ]
 
-        with st.expander(f"{meta.get('label', table_name)}", expanded=True):
-            # Render fields in 2-column grid
-            for i in range(0, len(field_list), 2):
-                cols = st.columns(2)
-                for j, col in enumerate(cols):
-                    if i + j < len(field_list):
-                        field_name, field_info = field_list[i + j]
-                        filter_key = f"{table_name}.{field_name}"
-                        with col:
-                            _render_filter_widget(table_name, field_name, field_info, filter_key)
+            if not field_list:
+                continue
 
-    # Footer buttons
-    col_apply, col_clear, _ = st.columns([1, 1, 4])
-    with col_apply:
-        if st.button("Apply Filters", type="primary", key="apply_filters_btn"):
-            st.session_state.show_filter_modal = False
-            st.rerun()
-    with col_clear:
-        if st.button("Clear All", key="clear_all_modal_btn"):
-            st.session_state.filters = {}
-            st.session_state.show_filter_modal = False
-            st.rerun()
+            with st.expander(f"{meta.get('label', table_name)}", expanded=True):
+                for field_name, field_info in field_list:
+                    filter_key = f"{table_name}.{field_name}"
+                    _render_filter_widget(table_name, field_name, field_info, filter_key)
 
-    st.markdown('</div>', unsafe_allow_html=True)
+        # Clear All button at bottom
+        if st.session_state.filters:
+            if st.button("Clear All Filters", key="clear_all_panel_btn", use_container_width=True):
+                st.session_state.filters = {}
+                st.rerun()
 
-
-# Render filter modal
-_render_filter_modal()
+        st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------------
@@ -1650,7 +1640,25 @@ def _render_active_filters_bar():
                 st.rerun()
 
 
-_render_active_filters_bar()
+# ---------------------------------------------------------------------------
+# Filter pills bar + filter toggle button (in main area)
+# ---------------------------------------------------------------------------
+
+if st.session_state.active_tables:
+    pill_col, btn_col = st.columns([8, 2])
+    with pill_col:
+        _render_active_filters_bar()
+    with btn_col:
+        active_filter_count = len(st.session_state.filters)
+        _filter_open = st.session_state.get("show_filter_modal", False)
+        _btn_label = f"\U0001f50d Filters ({active_filter_count})" if active_filter_count else "\U0001f50d Filters"
+        if st.button(_btn_label, key="main_filter_toggle",
+                     type="secondary" if _filter_open else "primary",
+                     use_container_width=True):
+            st.session_state.show_filter_modal = not _filter_open
+            st.rerun()
+else:
+    _render_active_filters_bar()
 
 
 # ---------------------------------------------------------------------------
@@ -1937,17 +1945,35 @@ if not _active_table_tabs:
     """, unsafe_allow_html=True)
     st.stop()
 
-_tab_names = [label for _, label in _active_table_tabs] + ["Data Explorer", "AI Analyst"]
-_tabs = st.tabs(_tab_names)
+# ---------------------------------------------------------------------------
+# Layout: charts (left) + optional filter panel (right)
+# ---------------------------------------------------------------------------
 
-# Render each active table tab
-for i, (tn, label) in enumerate(_active_table_tabs):
-    with _tabs[i]:
-        render_table_analysis(tn)
+_filter_panel_open = st.session_state.get("show_filter_modal", False)
 
-# Data Explorer and AI Analyst are at the end
-_explore_idx = len(_active_table_tabs)
-_ai_idx = _explore_idx + 1
+if _filter_panel_open:
+    _chart_col, _filter_col = st.columns([7, 3])
+else:
+    _chart_col = st.container()
+    _filter_col = None
+
+# Render filter panel in right column (if open)
+if _filter_col is not None:
+    _render_filter_panel(_filter_col)
+
+# Render tabs + charts in left column
+with _chart_col:
+    _tab_names = [label for _, label in _active_table_tabs] + ["Data Explorer", "AI Analyst"]
+    _tabs = st.tabs(_tab_names)
+
+    # Render each active table tab
+    for i, (tn, label) in enumerate(_active_table_tabs):
+        with _tabs[i]:
+            render_table_analysis(tn)
+
+    # Data Explorer and AI Analyst are at the end
+    _explore_idx = len(_active_table_tabs)
+    _ai_idx = _explore_idx + 1
 
 
 # ===== Data Explorer Tab =====================================================
